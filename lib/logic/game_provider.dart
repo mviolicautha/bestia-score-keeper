@@ -187,7 +187,7 @@ class GameProvider extends ChangeNotifier {
   bool addPlayer(String name) {
     if (!canChangeBet) return false;
 
-    if (players.length < 15) { 
+    if (players.length < 10) { 
       _saveSnapshot();
       
       final newPlayer = Player(name: name);
@@ -401,6 +401,79 @@ class GameProvider extends ChangeNotifier {
     isLinkingMode = false;
     _autoSave();
   }
+
+  Map<String, dynamic> calculateStats() {
+    Map<String, int> winsCount = {};
+    Map<String, int> bestieCount = {};
+    int totalRounds = 0;
+    double maxPotFound = 0.0; // Variabile per il piatto massimo
+
+    for (var log in gameLogs) {
+      // 1. Calcolo Mani
+      if (log.type == LogType.pass) {
+        totalRounds++;
+      }
+      
+      // 2. Analisi Piatto Massimo (Parsing del testo)
+      // Cerchiamo messaggi che contengono "Piatto: 12.50€"
+      if (log.message.contains("Piatto: ")) {
+        try {
+          // Splittiamo la stringa per isolare il numero finale
+          final parts = log.message.split("Piatto: ");
+          if (parts.length > 1) {
+            // Prendiamo la parte dopo "Piatto: ", togliamo il simbolo € e gli spazi
+            String amountStr = parts[1].replaceAll("€", "").trim();
+            double amount = double.tryParse(amountStr) ?? 0.0;
+            
+            if (amount > maxPotFound) {
+              maxPotFound = amount;
+            }
+          }
+        } catch (e) {
+          // Ignoriamo errori di parsing su messaggi anomali
+        }
+      }
+
+      // 3. Conteggio Vittorie
+      if (log.type == LogType.gain) {
+        String clean = log.message.replaceAll("Vincita assegnata: ", "");
+        List<String> parts = clean.split(", ");
+        for (var part in parts) {
+          String name = part.split(" (")[0].trim();
+          List<String> subNames = name.split("&");
+          for(var n in subNames) {
+             winsCount[n] = (winsCount[n] ?? 0) + 1;
+          }
+        }
+      }
+      
+      // 4. Conteggio Bestie
+      else if (log.type == LogType.loss) {
+        String clean = log.message.replaceAll("Bestie assegnate: ", "");
+        List<String> parts = clean.split(", ");
+        for (var part in parts) {
+          String name = part.split(" (")[0].trim();
+          List<String> subNames = name.split("&");
+          for(var n in subNames) {
+             bestieCount[n] = (bestieCount[n] ?? 0) + 1;
+          }
+        }
+      }
+    }
+    
+    // Controllo finale: se il piatto attuale è il più alto mai raggiunto (es. partita finita col botto)
+    if (currentPot > maxPotFound) {
+      maxPotFound = currentPot;
+    }
+
+    return {
+      'wins': winsCount,
+      'bestie': bestieCount,
+      'rounds': totalRounds,
+      'maxPot': maxPotFound, // Passiamo il dato
+    };
+  }
+
 
   List<Player> endGame() {
     if ((currentPot - baseBet).abs() < 0.01 && players.isNotEmpty) {

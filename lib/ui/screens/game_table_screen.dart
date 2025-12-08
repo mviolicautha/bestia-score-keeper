@@ -4,7 +4,8 @@ import 'package:provider/provider.dart';
 import 'package:showcaseview/showcaseview.dart'; 
 import 'package:bestia_scoreboard_application/logic/game_provider.dart';
 import 'package:bestia_scoreboard_application/data/model/player.dart';
-import 'package:bestia_scoreboard_application/data/model/game_log.dart'; // Importa il modello log
+import 'package:bestia_scoreboard_application/data/model/game_log.dart';
+import 'package:bestia_scoreboard_application/ui/screens/match_statistics_screen.dart';
 
 class GameTableScreen extends StatefulWidget {
   const GameTableScreen({super.key});
@@ -462,7 +463,7 @@ class _GameTableScreenState extends State<GameTableScreen> {
 
   Widget _buildRealBottomControls(BuildContext context, GameProvider game) {
     if (game.currentPhase == GamePhase.dealerSelection) {
-        bool canAddMore = game.players.length < 15;
+        bool canAddMore = game.players.length < 10;
         bool isPotClean = game.canChangeBet;
         bool enableAddButton = canAddMore && isPotClean;
         bool hasMinPlayers = game.activePlayers.length >= 5;
@@ -585,21 +586,104 @@ class _GameTableScreenState extends State<GameTableScreen> {
     showDialog(context: context, barrierDismissible: false, builder: (ctx) => AlertDialog(title: const Text("Terminare la partita?"), content: Text("Il piatto è vuoto (${game.baseBet.toStringAsFixed(2)} €).\nTerminando ora, l'invito verrà restituito al mazziere e verranno calcolati i risultati finali."), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Annulla")), ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: () { Navigator.pop(ctx); _processEndGame(context); }, child: const Text("TERMINA E CALCOLA", style: TextStyle(color: Colors.white)))]));
   }
 
-  void _processEndGame(BuildContext context) {
-    final results = Provider.of<GameProvider>(context, listen: false).endGame();
-    showDialog(context: context, barrierDismissible: false, builder: (ctx) => Dialog(backgroundColor: Colors.white, insetPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 20), child: Container(width: double.maxFinite, padding: const EdgeInsets.all(16), child: Column(mainAxisSize: MainAxisSize.min, children: [
+void _processEndGame(BuildContext context) {
+    final gameProvider = Provider.of<GameProvider>(context, listen: false);
+    
+    // 1. CALCOLA STATISTICHE (Prima di cancellare i dati!)
+    final stats = gameProvider.calculateStats();
+
+    // 2. TERMINA E RESETTA
+    final results = gameProvider.endGame();
+    
+    // 3. MOSTRA DIALOG RISULTATI
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.white,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 20),
+        child: Container(
+          width: double.maxFinite,
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
               const Text("RISULTATI FINALI", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87)),
               const Divider(thickness: 2, color: Colors.black12),
               const SizedBox(height: 10),
-              ...List.generate(results.length, (index) {
-                final p = results[index];
-                final isWinner = p.score > 0.001;
-                final isLoser = p.score < -0.001;
-                Color rowColor = index % 2 == 0 ? Colors.grey[50]! : Colors.white;
-                return Container(color: rowColor, padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4), child: Row(children: [SizedBox(width: 30, child: index == 0 ? const Icon(Icons.emoji_events, color: Colors.amber, size: 24) : Text("#${index + 1}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey), textAlign: TextAlign.center)), const SizedBox(width: 10), Expanded(child: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16), overflow: TextOverflow.ellipsis)), Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: isWinner ? Colors.green[50] : (isLoser ? Colors.red[50] : Colors.grey[100]), borderRadius: BorderRadius.circular(8), border: Border.all(color: isWinner ? Colors.green : (isLoser ? Colors.red : Colors.grey), width: 1)), child: Text("${p.score > 0 ? '+' : ''}${p.score.toStringAsFixed(2)} €", style: TextStyle(color: isWinner ? Colors.green[800] : (isLoser ? Colors.red[800] : Colors.black54), fontWeight: FontWeight.bold, fontSize: 16)))]));
-              }),
-              const Spacer(), const SizedBox(height: 20),
-              SizedBox(width: double.infinity, child: ElevatedButton.icon(icon: const Icon(Icons.refresh, color: Colors.white), label: const Text("NUOVA PARTITA", style: TextStyle(color: Colors.white)), style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2E3B55), padding: const EdgeInsets.symmetric(vertical: 14)), onPressed: () => Navigator.pop(ctx))),
-            ]))));
+              
+              // LISTA CLASSIFICA
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: List.generate(results.length, (index) {
+                      final p = results[index];
+                      final isWinner = p.score > 0.001;
+                      final isLoser = p.score < -0.001;
+                      Color rowColor = index % 2 == 0 ? Colors.grey[50]! : Colors.white;
+                      return Container(
+                        color: rowColor,
+                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                        child: Row(
+                          children: [
+                            SizedBox(width: 30, child: index == 0 ? const Icon(Icons.emoji_events, color: Colors.amber, size: 24) : Text("#${index + 1}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey), textAlign: TextAlign.center)),
+                            const SizedBox(width: 10),
+                            Expanded(child: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16), overflow: TextOverflow.ellipsis)),
+                            Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: isWinner ? Colors.green[50] : (isLoser ? Colors.red[50] : Colors.grey[100]), borderRadius: BorderRadius.circular(8), border: Border.all(color: isWinner ? Colors.green : (isLoser ? Colors.red : Colors.grey), width: 1)), child: Text("${p.score > 0 ? '+' : ''}${p.score.toStringAsFixed(2)} €", style: TextStyle(color: isWinner ? Colors.green[800] : (isLoser ? Colors.red[800] : Colors.black54), fontWeight: FontWeight.bold, fontSize: 16))),
+                          ],
+                        ),
+                      );
+                    }),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+              
+              // --- NUOVO PULSANTE STATISTICHE ---
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.bar_chart, color: Color(0xFF2E3B55)),
+                  label: const Text("STATISTICHE PARTITA", style: TextStyle(color: Color(0xFF2E3B55), fontWeight: FontWeight.bold)),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    side: const BorderSide(color: Color(0xFF2E3B55), width: 2),
+                  ),
+                  onPressed: () {
+                    // Naviga alla pagina statistiche
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => MatchStatisticsScreen(
+                          players: results,
+                          stats: stats,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              
+              const SizedBox(height: 10),
+
+              // PULSANTE NUOVA PARTITA
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.refresh, color: Colors.white),
+                  label: const Text("NUOVA PARTITA", style: TextStyle(color: Colors.white)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2E3B55),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  onPressed: () => Navigator.pop(ctx), // Chiude dialog
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
