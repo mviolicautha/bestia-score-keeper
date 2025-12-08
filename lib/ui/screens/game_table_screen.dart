@@ -11,19 +11,19 @@ class GameTableScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final game = context.watch<GameProvider>();
     
+    // Status Bar & Colori
     String statusText = "";
     Color statusColor = Colors.white;
     switch (game.currentPhase) {
       case GamePhase.dealerSelection:
         statusText = "MANO IN CORSO";
-        statusColor = Colors.white;
         break;
       case GamePhase.pickingWinners:
         statusText = "SELEZIONA VINCITORI";
         statusColor = Colors.greenAccent;
         break;
       case GamePhase.pickingLosers:
-        statusText = "SELEZIONA BUSSATI (PERDENTI)";
+        statusText = "SELEZIONA BUSSATI";
         statusColor = Colors.redAccent;
         break;
     }
@@ -32,60 +32,46 @@ class GameTableScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(statusText, style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 16)),
+        title: Text(statusText, style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 18)),
         centerTitle: true,
-        backgroundColor: const Color(0xFF2E3B55),
+        backgroundColor: const Color(0xFF1A233A), // Blu ancora più scuro per contrasto
         elevation: 0,
         actions: [
-          // SETTINGS (Modificato)
           IconButton(
-            icon: Icon(
-              Icons.settings, 
-              // Feedback visivo: grigio scuro se disabilitato, bianco se abilitato
-              color: game.canChangeBet ? Colors.white70 : Colors.white24 
-            ),
-            tooltip: "Imposta Messa",
+            icon: Icon(Icons.settings, color: game.canChangeBet ? Colors.white : Colors.white24),
             onPressed: () {
               if (game.canChangeBet) {
                 _showSettingsDialog(context);
               } else {
-                // Mostra avviso se non si può cambiare
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text("Non puoi cambiare la Messa mentre c'è un piatto in corso! Attendi che si svuoti."),
-                    backgroundColor: Colors.orange,
-                    duration: Duration(seconds: 2),
-                  )
-                );
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Impossibile cambiare Messa a partita in corso!"), backgroundColor: Colors.orange));
               }
             },
           ),
-          // TERMINA (Invariato)
-          IconButton(
-            icon: const Icon(Icons.flag, color: Colors.redAccent),
-            tooltip: "Termina Partita",
-            onPressed: () => _showEndGameDialog(context),
-          ),
+          IconButton(icon: const Icon(Icons.flag, color: Colors.redAccent), onPressed: () => _showEndGameDialog(context)),
         ],
       ),
-      backgroundColor: const Color(0xFF2E3B55),
+      backgroundColor: const Color(0xFF1A233A),
       body: Column(
         children: [
+          // HEADER PIATTO (Più compatto)
           Container(
-            padding: const EdgeInsets.symmetric(vertical: 20),
+            padding: const EdgeInsets.symmetric(vertical: 10),
             child: Column(
               children: [
-                const Text("PIATTO", style: TextStyle(color: Colors.white54, letterSpacing: 2)),
-                Text("${game.currentPot.toStringAsFixed(2)} €", style: const TextStyle(color: Color(0xFFFFD700), fontSize: 40, fontWeight: FontWeight.bold)),
-                Text("(Messa: ${game.baseBet.toStringAsFixed(2)} €)", style: const TextStyle(color: Colors.white30, fontSize: 12)),
+                const Text("PIATTO", style: TextStyle(color: Colors.white38, letterSpacing: 2, fontSize: 10)),
+                Text("${game.currentPot.toStringAsFixed(2)} €", style: const TextStyle(color: Color(0xFFFFD700), fontSize: 42, fontWeight: FontWeight.bold, height: 1.0)),
+                Text("Messa: ${game.baseBet.toStringAsFixed(2)} €", style: const TextStyle(color: Colors.white24, fontSize: 11)),
               ],
             ),
           ),
 
+          // TAVOLO
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final double tableDiameter = min(constraints.maxWidth, constraints.maxHeight) - 40;
+                // Massimizziamo il tavolo
+                // Lasciamo meno margine (20px)
+                final double tableDiameter = min(constraints.maxWidth, constraints.maxHeight) - 20;
                 final double radius = tableDiameter / 2;
 
                 return Center(
@@ -93,33 +79,54 @@ class GameTableScreen extends StatelessWidget {
                     width: tableDiameter, height: tableDiameter,
                     child: Stack(
                       alignment: Alignment.center,
+                      clipBehavior: Clip.none, // Permette agli avatar di sbordare un po'
                       children: [
+                        // 1. Tavolo (Panno)
                         Container(
                           decoration: BoxDecoration(
-                            color: const Color(0xFF35654d),
+                            color: const Color(0xFF2E7D32), // Verde più intenso
                             shape: BoxShape.circle,
-                            border: Border.all(color: const Color(0xFF5D4037), width: 12),
-                            boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 20)],
+                            border: Border.all(color: const Color(0xFF4E342E), width: 8), // Bordo più sottile
+                            boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 25, spreadRadius: 5)],
                           ),
                         ),
                         
+                        // 2. Logo Centrale (Decorativo)
+                       Opacity
+                       (
+                          opacity: 0.1,
+                          child: Text(
+                            "\u2660", // Simbolo Picche Unicode
+                            style: TextStyle(
+                              fontSize: tableDiameter * 0.5, 
+                              color: Colors.black,
+                              height: 1.0, // Rimuove padding verticale extra del font
+                            ),
+                          ),
+                        ),
+
+                        // 3. Giocatori
                         ...List.generate(game.players.length, (index) {
                           final p = game.players[index];
+                          // Distribuzione angolare
                           final double angle = (2 * pi * index) / game.players.length - (pi / 2);
-                          final double playerRadius = radius - 45; 
                           
-                          // Ottieni indice del gruppo per colorare
+                          // Raggio posizionamento: Li mettiamo quasi sul bordo
+                          // radius - 35px offset per centrare l'avatar sul bordo interno
+                          final double playerRadius = radius - 35; 
+                          
                           int groupIndex = game.getPlayerGroupIndex(p.id);
                           
                           return Transform.translate(
                             offset: Offset(playerRadius * cos(angle), playerRadius * sin(angle)),
                             child: GestureDetector(
                               onTap: () => game.togglePlayerSelection(p.id),
-                              child: _buildPlayerAvatar(p, groupIndex, game.currentPhase),
+                              child: _buildEnhancedPlayerAvatar(p, groupIndex, game.currentPhase, angle),
                             ),
                           );
                         }),
 
+                        // 4. Dealer Token
                         if (game.players.isNotEmpty)
                           _buildDealerToken(radius, game.players.length, game.dealerIndex),
                       ],
@@ -130,11 +137,95 @@ class GameTableScreen extends StatelessWidget {
             ),
           ),
 
+          // CONTROLLI
           Container(
-            padding: const EdgeInsets.all(20),
-            color: Colors.black26,
-            child: SafeArea(
-              child: _buildBottomControls(context, game),
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
+            color: const Color(0xFF121826),
+            child: SafeArea(child: _buildBottomControls(context, game)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- NUOVO WIDGET AVATAR MIGLIORATO ---
+  Widget _buildEnhancedPlayerAvatar(Player player, int groupIndex, GamePhase phase, double angle) {
+    // Determina colori bordo selezione
+    Color borderColor = Colors.white24; // Default bordo sottile
+    double borderWidth = 2;
+    double scale = 1.0;
+
+    List<Color> groupColors = [Colors.greenAccent, Colors.cyanAccent, Colors.orangeAccent, Colors.purpleAccent];
+    if (phase == GamePhase.pickingLosers) groupColors = [Colors.redAccent, Colors.deepOrangeAccent, Colors.pinkAccent, Colors.amber];
+
+    if (groupIndex != -1) {
+      borderWidth = 4;
+      borderColor = groupColors[groupIndex % groupColors.length];
+      scale = 1.15; // Leggero ingrandimento se selezionato
+    }
+
+    // Genera iniziali (Max 2 caratteri)
+    String initials = player.name.isNotEmpty ? player.name[0].toUpperCase() : "?";
+    if (player.name.length > 1) {
+      initials += player.name[1].toLowerCase(); // Es: "Ma"
+    }
+
+    // Colore Avatar deterministico basato sul nome (così "Marco" è sempre Blu, "Anna" è Rossa)
+    final int hash = player.name.codeUnits.fold(0, (p, c) => p + c);
+    final List<Color> avatarColors = [Colors.blue.shade700, Colors.teal.shade700, Colors.indigo.shade700, Colors.deepPurple.shade700, Colors.brown.shade700];
+    final Color avatarColor = avatarColors[hash % avatarColors.length];
+
+    return Transform.scale(
+      scale: scale,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // AVATAR CERCHIO
+          Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: borderColor, width: borderWidth),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 4, offset: const Offset(0, 2))],
+            ),
+            child: CircleAvatar(
+              radius: 26, // Più grande (era 22)
+              backgroundColor: avatarColor,
+              foregroundColor: Colors.white,
+              child: Text(initials, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            ),
+          ),
+          
+          const SizedBox(height: 4),
+
+          // ETICHETTA NOME & SCORE
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            constraints: const BoxConstraints(maxWidth: 80), // Max larghezza per evitare overflow
+            decoration: BoxDecoration(
+              color: Colors.black87,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.white12),
+            ),
+            child: Column(
+              children: [
+                Text(
+                  player.name, 
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  "${player.score.toStringAsFixed(2)}€", 
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: player.score < 0 ? Colors.redAccent : Colors.greenAccent, 
+                    fontSize: 11, 
+                    fontWeight: FontWeight.w900
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -142,160 +233,131 @@ class GameTableScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildPlayerAvatar(Player player, int groupIndex, GamePhase phase) {
-    Color borderColor = Colors.transparent;
-    double borderWidth = 0;
-    
-    // Palette colori per i gruppi (fino a 4 gruppi diversi, poi cicla)
-    List<Color> groupColors = [
-      Colors.greenAccent,
-      Colors.cyanAccent,
-      Colors.orangeAccent,
-      Colors.purpleAccent,
-    ];
-
-    if (phase == GamePhase.pickingLosers) {
-      // In fase perdenti usiamo toni di rosso/arancio
-      groupColors = [
-        Colors.redAccent,
-        Colors.deepOrangeAccent,
-        Colors.pinkAccent,
-        Colors.amberAccent,
-      ];
-    }
-
-    if (groupIndex != -1) {
-      borderWidth = 4;
-      borderColor = groupColors[groupIndex % groupColors.length];
-    }
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: borderColor, width: borderWidth),
-          ),
-          child: CircleAvatar(
-            radius: 22,
-            backgroundColor: Colors.white,
-            child: Text(player.name.isNotEmpty ? player.name[0].toUpperCase() : "?", 
-                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
-          ),
-        ),
-        const SizedBox(height: 4),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          decoration: BoxDecoration(
-            color: Colors.black87,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Text(
-            "${player.name}\n${player.score.toStringAsFixed(2)}", 
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.white, fontSize: 10),
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildDealerToken(double tableRadius, int playerCount, int dealerIndex) {
-    final double tokenRadius = tableRadius - 90;
+    final double tokenRadius = tableRadius - 105; // Posizionato più interno
     final double angle = (2 * pi * dealerIndex) / playerCount - (pi / 2);
+    
     return Transform.translate(
       offset: Offset(tokenRadius * cos(angle), tokenRadius * sin(angle)),
       child: Container(
-        width: 30, height: 30,
-        decoration: const BoxDecoration(color: Colors.yellow, shape: BoxShape.circle),
-        child: const Center(child: Text("D", style: TextStyle(fontWeight: FontWeight.bold))),
+        width: 32, height: 32,
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(colors: [Color(0xFFFFD700), Color(0xFFFFA000)]),
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white, width: 2),
+          boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 4)],
+        ),
+        child: const Center(child: Text("D", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87))),
       ),
     );
   }
 
+  // --- CONTROLLI (Con pulsante Link migliorato) ---
   Widget _buildBottomControls(BuildContext context, GameProvider game) {
-    // FASE 1: NORMALE
     if (game.currentPhase == GamePhase.dealerSelection) {
         bool canAddMore = game.players.length < 10;
+        bool isPotClean = game.canChangeBet; 
+        bool enableAddButton = canAddMore && isPotClean;
         bool canPlay = game.players.length >= 5;
+        Color passButtonColor = canPlay ? Colors.blueGrey[700]! : Colors.grey[800]!;
+        Color playButtonColor = canPlay ? const Color(0xFF1E88E5) : const Color(0xFF1E88E5).withOpacity(0.3);
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (!canPlay)
-              const Padding(padding: EdgeInsets.only(bottom: 8.0), child: Text("Minimo 5 giocatori", style: TextStyle(color: Colors.orangeAccent))),
+              Padding(padding: const EdgeInsets.only(bottom: 8.0), child: Text("Minimo 5 giocatori (${game.players.length}/5)", style: const TextStyle(color: Colors.orangeAccent, fontSize: 12))),
             Row(
               children: [
-                Opacity(
-                  opacity: canAddMore ? 1.0 : 0.5,
-                  child: FloatingActionButton.small(heroTag: "add", backgroundColor: canAddMore ? Colors.blueGrey : Colors.grey, onPressed: canAddMore ? () => _showAddPlayerDialog(context) : null, child: const Icon(Icons.person_add, color: Colors.white)),
+                FloatingActionButton.small(
+                  heroTag: "add", 
+                  backgroundColor: enableAddButton ? Colors.blueGrey : Colors.grey[800], 
+                  onPressed: enableAddButton ? () => _showAddPlayerDialog(context) : null, 
+                  child: Icon(Icons.person_add, color: canAddMore ? Colors.white : Colors.white24)
                 ),
-                const SizedBox(width: 10),
-                Expanded(child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.grey[700], padding: const EdgeInsets.symmetric(vertical: 16)), onPressed: canPlay ? game.passHandWithoutPlaying : null, child: Text("PASSA (+${game.baseBet.toStringAsFixed(2)})", style: const TextStyle(color: Colors.white, fontSize: 12)))),
-                const SizedBox(width: 10),
-                Expanded(flex: 2, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, padding: const EdgeInsets.symmetric(vertical: 16)), onPressed: canPlay ? game.startHand : null, child: const Text("GIOCA MANO", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))),
+                const SizedBox(width: 12),
+                Expanded(child: _buildActionButton("PASSA (+${game.baseBet.toStringAsFixed(2)})", passButtonColor, canPlay ? game.passHandWithoutPlaying : null)),
+                const SizedBox(width: 12),
+                Expanded(flex: 2, child: _buildActionButton("GIOCA MANO", playButtonColor, canPlay ? game.startHand : null)),
               ],
             ),
           ],
         );
     }
 
-    // FASE 2 e 3: SELEZIONE CON LINKING
-    Color btnColor = game.currentPhase == GamePhase.pickingWinners ? Colors.green : Colors.redAccent;
-    String btnText = game.currentPhase == GamePhase.pickingWinners ? "CONFERMA VINCITORI" : "FINE MANO";
+    // FASE 2/3
+    Color btnColor = game.currentPhase == GamePhase.pickingWinners ? const Color(0xFF43A047) : const Color(0xFFE53935);
+    String btnText = game.currentPhase == GamePhase.pickingWinners ? "CONFERMA" : "FINE MANO";
     VoidCallback? onConfirm;
     if (game.currentPhase == GamePhase.pickingWinners) {
-      // Per i vincitori, richiediamo almeno una selezione
       onConfirm = game.selectionGroups.isEmpty ? null : game.confirmWinners;
     } else {
-      // Per i perdenti, va bene anche vuoto (Nessuno ha perso)
       onConfirm = game.confirmLosersAndEndHand;
     }
 
     return Row(
       children: [
-        // Pulsante LINK (Società)
-        Container(
-          margin: const EdgeInsets.only(right: 12),
-          decoration: BoxDecoration(
-            color: game.isLinkingMode ? Colors.amber : Colors.grey[800],
+        // Tasto Società
+        Material(
+          color: game.isLinkingMode ? const Color(0xFFFFC107) : Colors.grey[800],
+          borderRadius: BorderRadius.circular(12),
+          child: InkWell(
+            onTap: game.toggleLinkingMode,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: game.isLinkingMode ? Colors.amberAccent : Colors.transparent, width: 2)
-          ),
-          child: IconButton(
-            icon: Icon(Icons.link, color: game.isLinkingMode ? Colors.black : Colors.white),
-            tooltip: "Crea Società (Collega giocatori)",
-            onPressed: game.toggleLinkingMode,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: Icon(Icons.link, color: game.isLinkingMode ? Colors.black87 : Colors.white70),
+            ),
           ),
         ),
-        
-        // Pulsante Conferma
+        const SizedBox(width: 12),
         Expanded(
           child: ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: btnColor, padding: const EdgeInsets.symmetric(vertical: 16)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: btnColor,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              elevation: 4,
+            ),
             onPressed: onConfirm,
-            child: Text(btnText, style: const TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold)),
+            child: Text(btnText, style: const TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 1)),
           ),
         ),
       ],
     );
   }
 
-  // --- DIALOGS (Invariati) ---
+  Widget _buildActionButton(String text, Color color, VoidCallback? onTap) {
+    return ElevatedButton(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        disabledBackgroundColor: color.withOpacity(0.3),
+        disabledForegroundColor: Colors.white12,
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      onPressed: onTap,
+      child: Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+    );
+  }
+
+  // --- DIALOGS (Invariati o leggermente puliti) ---
   void _showAddPlayerDialog(BuildContext context) {
       final controller = TextEditingController();
       showDialog(context: context, builder: (ctx) => AlertDialog(
-          backgroundColor: Colors.blueGrey[900],
+          backgroundColor: const Color(0xFF263238),
           title: const Text("Nuovo Giocatore", style: TextStyle(color: Colors.white)),
-          content: TextField(controller: controller, style: const TextStyle(color: Colors.white), decoration: const InputDecoration(hintText: "Nome", hintStyle: TextStyle(color: Colors.white54), enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white54)))),
+          content: TextField(controller: controller, style: const TextStyle(color: Colors.white), decoration: const InputDecoration(hintText: "Nome", hintStyle: TextStyle(color: Colors.white38), enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white38)))),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Annulla", style: TextStyle(color: Colors.white54))),
-            ElevatedButton(onPressed: () {
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+              onPressed: () {
                 if (controller.text.isNotEmpty) {
                   Provider.of<GameProvider>(context, listen: false).addPlayer(controller.text);
                   Navigator.pop(ctx);
                 }
-              }, child: const Text("Aggiungi"))
+              }, 
+              child: const Text("Aggiungi", style: TextStyle(color: Colors.white)))
           ],
         ));
   }
@@ -312,6 +374,7 @@ class GameTableScreen extends StatelessWidget {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             title: const Text("Imposta Messa", style: TextStyle(fontWeight: FontWeight.bold)),
             content: Column(mainAxisSize: MainAxisSize.min, children: [
+                const SizedBox(height: 10),
                 const Text("Modifica l'importo che il mazziere deve mettere ad ogni giro.", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey, fontSize: 13)),
                 const SizedBox(height: 24),
                 Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8), decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey[300]!)), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
