@@ -188,12 +188,12 @@ class GameTableScreen extends StatelessWidget {
 
   // --- WIDGETS ---
 
-  Widget _buildEnhancedPlayerAvatar(Player player, int groupIndex, GamePhase phase, double angle, {bool isDisabled = false}) {
+   Widget _buildEnhancedPlayerAvatar(Player player, int groupIndex, GamePhase phase, double angle, {bool isDisabled = false}) {
     Color borderColor = Colors.white24;
     double borderWidth = 2;
     double scale = 1.0;
 
-    // Se disabilitato, riduciamo l'opacità di tutto il blocco
+    // Se disabilitato, riduciamo l'opacità
     double opacity = isDisabled ? 0.3 : 1.0;
 
     List<Color> groupColors = [Colors.greenAccent, Colors.cyanAccent, Colors.orangeAccent, Colors.purpleAccent];
@@ -212,13 +212,10 @@ class GameTableScreen extends StatelessWidget {
       groupLabel = "GRUPPO $letter";
     }
 
-    String initials = player.name.isNotEmpty ? player.name[0].toUpperCase() : "?";
-    if (player.name.length > 1) initials += player.name[1].toLowerCase();
-
+    // Hash Colore Sfondo (rimane utile per distinguere visivamente i giocatori anche senza iniziali)
     final int hash = player.name.codeUnits.fold(0, (p, c) => p + c);
     final List<Color> avatarColors = [Colors.blue.shade700, Colors.teal.shade700, Colors.indigo.shade700, Colors.deepPurple.shade700, Colors.brown.shade700];
     
-    // Se disabilitato, rendiamo l'avatar grigio scuro, altrimenti il suo colore
     final Color avatarColor = isDisabled ? Colors.grey.shade800 : avatarColors[hash % avatarColors.length];
 
     return Opacity(
@@ -232,6 +229,7 @@ class GameTableScreen extends StatelessWidget {
               clipBehavior: Clip.none,
               alignment: Alignment.topCenter,
               children: [
+                // AVATAR CON ICONA
                 Container(
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
@@ -239,13 +237,14 @@ class GameTableScreen extends StatelessWidget {
                     boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 4, offset: const Offset(0, 2))],
                   ),
                   child: CircleAvatar(
-                    radius: 26,
+                    radius: 28, // Leggermente più grande (era 26)
                     backgroundColor: avatarColor,
-                    foregroundColor: Colors.white, // Se disabilitato sarà grigino per l'opacity generale
-                    child: Text(initials, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                    foregroundColor: Colors.white, 
+                    child: const Icon(Icons.person, size: 34), // Icona Utente
                   ),
                 ),
 
+                // BADGE GRUPPO
                 if (groupLabel != null)
                   Positioned(
                     top: -12, 
@@ -271,19 +270,40 @@ class GameTableScreen extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 6), 
+            
+            // BOX NOME & SCORE
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              constraints: const BoxConstraints(maxWidth: 80),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5), // Più padding verticale
+              constraints: const BoxConstraints(maxWidth: 95), // Più largo per accogliere font maggiore
               decoration: BoxDecoration(
                 color: Colors.black87,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(10), // Più arrotondato
                 border: Border.all(color: Colors.white12),
               ),
               child: Column(
                 children: [
-                  Text(player.name, textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                  Text(
+                    player.name, 
+                    textAlign: TextAlign.center, 
+                    maxLines: 1, 
+                    overflow: TextOverflow.ellipsis, 
+                    style: const TextStyle(
+                      color: Colors.white, 
+                      fontSize: 13, // NOME PIÙ GRANDE
+                      fontWeight: FontWeight.bold
+                    )
+                  ),
                   const SizedBox(height: 2),
-                  Text("${player.score.toStringAsFixed(2)}€", textAlign: TextAlign.center, style: TextStyle(color: player.score < 0 ? Colors.redAccent : Colors.greenAccent, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+                  Text(
+                    "${player.score.toStringAsFixed(2)}€", 
+                    textAlign: TextAlign.center, 
+                    style: TextStyle(
+                      color: player.score < 0 ? Colors.redAccent : Colors.greenAccent, 
+                      fontSize: 11, // Punteggio rimane 11 per gerarchia visiva
+                      fontWeight: FontWeight.w900, 
+                      letterSpacing: 0.5
+                    )
+                  ),
                 ],
               ),
             ),
