@@ -317,59 +317,112 @@ class GameTableScreen extends StatelessWidget {
       );
   }
 
-  void _showSettingsDialog(BuildContext context) {
+   void _showSettingsDialog(BuildContext context) {
     final game = Provider.of<GameProvider>(context, listen: false);
-    final controller = TextEditingController(text: game.baseBet.toStringAsFixed(2));
-    String? errorText;
+    double tempBet = game.baseBet; 
 
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setState) {
+          String displayBet = tempBet.toStringAsFixed(2);
+          bool canDecrease = tempBet > 0.31; 
+
           return AlertDialog(
-            title: const Text("Imposta Messa Iniziale"),
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Text(
+              "Imposta Messa",
+              style: TextStyle(fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text("Inserisci l'importo che il mazziere deve mettere ad ogni giro. Deve essere un multiplo di 0.30 €."),
-                const SizedBox(height: 20),
-                TextField(
-                  controller: controller,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: InputDecoration(
-                    labelText: "Importo (€)",
-                    errorText: errorText,
-                    suffixText: "€",
-                    border: const OutlineInputBorder(),
+                const Text(
+                  "Modifica l'importo che il mazziere deve mettere ad ogni giro.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey, fontSize: 13),
+                ),
+                const SizedBox(height: 24),
+                
+                // STEPPER UI
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey[300]!)
                   ),
-                  onChanged: (val) { if (errorText != null) setState(() => errorText = null); },
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // TASTO MENO
+                      _buildStepperButton(
+                        icon: Icons.remove,
+                        isEnabled: canDecrease,
+                        onPressed: () {
+                          setState(() {
+                            tempBet -= 0.30;
+                            tempBet = double.parse(tempBet.toStringAsFixed(2));
+                          });
+                        },
+                      ),
+
+                      // VALORE CENTRALE (Solo numero)
+                      Text(
+                        "$displayBet €",
+                        style: const TextStyle(
+                          fontSize: 32, // Leggermente più grande
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF2E3B55),
+                        ),
+                      ),
+
+                      // TASTO PIU
+                      _buildStepperButton(
+                        icon: Icons.add,
+                        isEnabled: true,
+                        onPressed: () {
+                          setState(() {
+                            tempBet += 0.30;
+                            tempBet = double.parse(tempBet.toStringAsFixed(2));
+                          });
+                        },
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
+            
+            // ALLINEAMENTO PULSANTI
+            // Usiamo actionsAlignment per distanziarli bene
+            actionsAlignment: MainAxisAlignment.spaceBetween,
+            actionsPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Annulla")),
+              // Tasto Annulla (Testo semplice a sinistra)
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+                child: const Text("Annulla", style: TextStyle(color: Colors.grey, fontSize: 16)),
+              ),
+              
+              // Tasto Salva (Bottone pieno a destra)
               ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2E3B55),
+                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  elevation: 2,
+                ),
                 onPressed: () {
-                  String cleanText = controller.text.replaceAll(',', '.');
-                  double? value = double.tryParse(cleanText);
-
-                  if (value == null) {
-                    setState(() => errorText = "Numero non valido");
-                    return;
-                  }
-
-                  double remainder = value % 0.30;
-                  bool isValid = remainder < 0.001 || (0.30 - remainder) < 0.001;
-
-                  if (!isValid) {
-                     setState(() => errorText = "Deve essere multiplo di 0.30");
-                     return;
-                  }
-
-                  game.setBaseBet(value);
+                  game.setBaseBet(tempBet);
                   Navigator.pop(ctx);
                 },
-                child: const Text("Salva"),
+                child: const Text("SALVA", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
               ),
             ],
           );
@@ -378,6 +431,33 @@ class GameTableScreen extends StatelessWidget {
     );
   }
 
+  // Widget helper per i pulsanti quadrati +/-
+  Widget _buildStepperButton({required IconData icon, required bool isEnabled, required VoidCallback onPressed}) {
+    return Material(
+      color: isEnabled ? Colors.white : Colors.grey[200],
+      borderRadius: BorderRadius.circular(8),
+      elevation: isEnabled ? 2 : 0,
+      child: InkWell(
+        onTap: isEnabled ? onPressed : null,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          width: 50,
+          height: 50,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: isEnabled ? Colors.grey[300]! : Colors.transparent),
+          ),
+          child: Icon(
+            icon, 
+            color: isEnabled ? Colors.black87 : Colors.grey[400], 
+            size: 28
+          ),
+        ),
+      ),
+    );
+  }
+ 
   void _showEndGameDialog(BuildContext context) {
     final game = Provider.of<GameProvider>(context, listen: false);
 
