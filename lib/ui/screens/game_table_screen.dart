@@ -2,7 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:bestia_scoreboard_application/logic/game_provider.dart';
-import 'package:bestia_scoreboard_application/data/model/player.dart'; // Importa per l'Enum
+import 'package:bestia_scoreboard_application/data/model/player.dart';
 
 class GameTableScreen extends StatelessWidget {
   const GameTableScreen({super.key});
@@ -38,7 +38,6 @@ class GameTableScreen extends StatelessWidget {
         backgroundColor: const Color(0xFF2E3B55),
         elevation: 0,
         actions: [
-          // Tasto TERMINA PARTITA
           IconButton(
             icon: const Icon(Icons.flag, color: Colors.redAccent),
             onPressed: () => _showEndGameDialog(context),
@@ -56,7 +55,7 @@ class GameTableScreen extends StatelessWidget {
               children: [
                 const Text("PIATTO", style: TextStyle(color: Colors.white54, letterSpacing: 2)),
                 Text(
-                  "${game.currentPot}", // DATO REALE
+                  "${game.currentPot}", 
                   style: const TextStyle(
                     color: Color(0xFFFFD700), fontSize: 48, fontWeight: FontWeight.bold
                   ),
@@ -94,7 +93,6 @@ class GameTableScreen extends StatelessWidget {
                           final double angle = (2 * pi * index) / game.players.length - (pi / 2);
                           final double playerRadius = radius - 45; 
                           
-                          // Verifica se è selezionato
                           bool isSelected = game.selectedPlayerIds.contains(p.id);
                           
                           return Transform.translate(
@@ -117,7 +115,7 @@ class GameTableScreen extends StatelessWidget {
             ),
           ),
 
-          // 3. BARRA CONTROLLI (DINAMICA)
+          // 3. BARRA CONTROLLI (DINAMICA E CON VALIDAZIONE)
           Container(
             padding: const EdgeInsets.all(20),
             color: Colors.black26,
@@ -189,33 +187,70 @@ class GameTableScreen extends StatelessWidget {
   Widget _buildBottomControls(BuildContext context, GameProvider game) {
     switch (game.currentPhase) {
       case GamePhase.dealerSelection:
-        return Row(
+        // Validazione
+        bool canAddMore = game.players.length < 10;
+        bool canPlay = game.players.length >= 5;
+
+        return Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // Aggiungi giocatore (Solo in fase 1)
-            FloatingActionButton.small(
-              heroTag: "add", backgroundColor: Colors.blueGrey,
-              onPressed: () => _showAddPlayerDialog(context),
-              child: const Icon(Icons.person_add, color: Colors.white),
-            ),
-            const SizedBox(width: 10),
-            // Bottone "Giro a vuoto"
-            Expanded(
-              flex: 1,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.grey[700], padding: const EdgeInsets.symmetric(vertical: 16)),
-                onPressed: game.passHandWithoutPlaying,
-                child: const Text("PASSA (+1)", style: TextStyle(color: Colors.white, fontSize: 12)),
+            // Warning visivo
+            if (!canPlay)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8.0),
+                child: Text(
+                  "Minimo 5 giocatori per iniziare (${game.players.length}/5)",
+                  style: const TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold),
+                ),
               ),
-            ),
-            const SizedBox(width: 10),
-            // Bottone "Gioca"
-            Expanded(
-              flex: 2,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, padding: const EdgeInsets.symmetric(vertical: 16)),
-                onPressed: game.startHand,
-                child: const Text("GIOCA MANO", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              ),
+
+            Row(
+              children: [
+                // Aggiungi (Disabilitato se 10+)
+                Opacity(
+                  opacity: canAddMore ? 1.0 : 0.5,
+                  child: FloatingActionButton.small(
+                    heroTag: "add", 
+                    backgroundColor: canAddMore ? Colors.blueGrey : Colors.grey,
+                    onPressed: canAddMore ? () => _showAddPlayerDialog(context) : null,
+                    child: const Icon(Icons.person_add, color: Colors.white),
+                  ),
+                ),
+                
+                const SizedBox(width: 10),
+                
+                // Passa Mazzo (Disabilitato se < 5)
+                Expanded(
+                  flex: 1,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.grey[700], 
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      disabledBackgroundColor: Colors.grey[800],
+                      disabledForegroundColor: Colors.grey[500],
+                    ),
+                    onPressed: canPlay ? game.passHandWithoutPlaying : null,
+                    child: const Text("PASSA (+1)", style: TextStyle(color: Colors.white, fontSize: 12)),
+                  ),
+                ),
+                
+                const SizedBox(width: 10),
+                
+                // Gioca (Disabilitato se < 5)
+                Expanded(
+                  flex: 2,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue, 
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      disabledBackgroundColor: Colors.blue[900]?.withOpacity(0.5),
+                      disabledForegroundColor: Colors.white38,
+                    ),
+                    onPressed: canPlay ? game.startHand : null,
+                    child: const Text("GIOCA MANO", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
             ),
           ],
         );
@@ -243,7 +278,6 @@ class GameTableScreen extends StatelessWidget {
   }
   
   void _showAddPlayerDialog(BuildContext context) {
-      // ... (stesso codice di prima) ...
       final controller = TextEditingController();
       showDialog(
         context: context,
@@ -253,9 +287,18 @@ class GameTableScreen extends StatelessWidget {
           content: TextField(
             controller: controller,
             style: const TextStyle(color: Colors.white),
+            decoration: const InputDecoration(
+              hintText: "Nome",
+              hintStyle: TextStyle(color: Colors.white54),
+              enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white54)),
+            ),
           ),
           actions: [
-             ElevatedButton(
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text("Annulla", style: TextStyle(color: Colors.white54)),
+            ),
+            ElevatedButton(
               onPressed: () {
                 if (controller.text.isNotEmpty) {
                   Provider.of<GameProvider>(context, listen: false).addPlayer(controller.text);
@@ -269,10 +312,10 @@ class GameTableScreen extends StatelessWidget {
       );
   }
 
-    void _showEndGameDialog(BuildContext context) {
+  void _showEndGameDialog(BuildContext context) {
     showDialog(
       context: context,
-      barrierDismissible: false, // Impedisce di chiudere cliccando fuori
+      barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         title: const Text("Terminare la partita?"),
         content: const Text("Questa azione resetterà tutti i punteggi e mostrerà la classifica finale."),
@@ -284,8 +327,8 @@ class GameTableScreen extends StatelessWidget {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () {
-              Navigator.pop(ctx); // Chiudi il dialog di conferma
-              _processEndGame(context); // Mostra risultati
+              Navigator.pop(ctx); // Chiudi conferma
+              _processEndGame(context); // Apri classifica
             },
             child: const Text("TERMINA", style: TextStyle(color: Colors.white)),
           ),
@@ -295,7 +338,6 @@ class GameTableScreen extends StatelessWidget {
   }
 
   void _processEndGame(BuildContext context) {
-    // Ottieni i risultati e resetta
     final results = Provider.of<GameProvider>(context, listen: false).endGame();
 
     showDialog(
@@ -303,12 +345,12 @@ class GameTableScreen extends StatelessWidget {
       barrierDismissible: false,
       builder: (ctx) => Dialog(
         backgroundColor: Colors.white,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 20), // Margini ridotti
+        insetPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 20),
         child: Container(
-          width: double.maxFinite, // Occupa larghezza disponibile
+          width: double.maxFinite,
           padding: const EdgeInsets.all(16),
           child: Column(
-            mainAxisSize: MainAxisSize.min, // Si adatta al contenuto
+            mainAxisSize: MainAxisSize.min,
             children: [
               // Header
               const Text(
@@ -319,21 +361,19 @@ class GameTableScreen extends StatelessWidget {
               
               const SizedBox(height: 10),
 
-              // TABELLA COMPATTA (Senza Scroll)
-              // Usiamo Flexible per dire "usa lo spazio che serve ma non scrollare se possibile"
-              // Se i giocatori sono 10, riduciamo leggermente il font o lo spazio
+              // TABELLA COMPATTA (Senza Scroll per Screenshot)
               ...List.generate(results.length, (index) {
                 final p = results[index];
                 final isWinner = p.score > 0;
                 final isLoser = p.score < 0;
-                Color rowColor = index % 2 == 0 ? Colors.grey[50]! : Colors.white; // Zebra striping
+                Color rowColor = index % 2 == 0 ? Colors.grey[50]! : Colors.white;
 
                 return Container(
                   color: rowColor,
                   padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
                   child: Row(
                     children: [
-                      // POSIZIONE
+                      // #
                       SizedBox(
                         width: 30,
                         child: index == 0 
@@ -351,11 +391,11 @@ class GameTableScreen extends StatelessWidget {
                         child: Text(
                           p.name,
                           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                          overflow: TextOverflow.ellipsis, // Se il nome è lunghissimo lo taglia
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
 
-                      // PUNTEGGIO
+                      // SCORE
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
@@ -380,11 +420,11 @@ class GameTableScreen extends StatelessWidget {
                 );
               }),
 
-              const Spacer(), // Spinge il bottone in fondo se c'è spazio extra
+              const Spacer(), 
 
               const SizedBox(height: 20),
               
-              // FOOTER CON BOTTONE
+              // FOOTER
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
