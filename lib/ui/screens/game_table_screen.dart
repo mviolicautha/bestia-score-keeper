@@ -36,6 +36,18 @@ class GameTableScreen extends StatelessWidget {
         centerTitle: true,
         backgroundColor: const Color(0xFF1A233A), 
         elevation: 0,
+        leading: game.canUndo 
+          ? IconButton(
+              icon: const Icon(Icons.undo, color: Colors.amberAccent),
+              tooltip: "Annulla ultima azione",
+              onPressed: () {
+                game.undoLastAction();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("Azione annullata"), duration: Duration(seconds: 1))
+                );
+              },
+            )
+          : null,
         actions: [
           IconButton(
             icon: Icon(Icons.settings, color: game.canChangeBet ? Colors.white : Colors.white24),
@@ -76,11 +88,8 @@ class GameTableScreen extends StatelessWidget {
               builder: (context, constraints) {
                 final double tableDiameter = min(constraints.maxWidth, constraints.maxHeight) - 20;
                 final double radius = tableDiameter / 2;
-
-                // Usiamo SOLO i giocatori attivi per il rendering
                 final activeList = game.activePlayers;
 
-                // Calcolo Dealer Index VISUALE (perché activeList è diversa da game.players globale)
                 int visualDealerIndex = -1;
                 if (game.players.isNotEmpty) {
                   final dealerPlayer = game.players[game.dealerIndex];
@@ -94,7 +103,7 @@ class GameTableScreen extends StatelessWidget {
                       alignment: Alignment.center,
                       clipBehavior: Clip.none, 
                       children: [
-                        // 1. Tavolo
+                        // Tavolo
                         Container(
                           decoration: BoxDecoration(
                             color: const Color(0xFF2E7D32),
@@ -104,16 +113,16 @@ class GameTableScreen extends StatelessWidget {
                           ),
                         ),
                         
-                        // 2. Logo Centrale
+                        // Logo
                         Opacity(
                           opacity: 0.1,
                           child: Text(
-                            "\u2660", // Picche Unicode
+                            "\u2660", 
                             style: TextStyle(fontSize: tableDiameter * 0.5, color: Colors.black, height: 1.0),
                           ),
                         ),
 
-                        // 3. Giocatori (Solo Attivi)
+                        // Giocatori
                         ...List.generate(activeList.length, (index) {
                           final p = activeList[index];
                           final double angle = (2 * pi * index) / activeList.length - (pi / 2);
@@ -125,17 +134,12 @@ class GameTableScreen extends StatelessWidget {
                             offset: Offset(playerRadius * cos(angle), playerRadius * sin(angle)),
                             child: GestureDetector(
                               onTap: () {
-                                // GESTIONE CLICK INTELLIGENTE
-                                // Se siamo in fase 1 e il piatto è pulito -> Mostra Stats/Abbandona
                                 if (game.currentPhase == GamePhase.dealerSelection) {
                                   if (game.canChangeBet) {
                                     _showPlayerStatsDialog(context, p);
-                                  } else {
-                                    // Feedback opzionale: non succede nulla o mini vibrazione
-                                  }
+                                  } 
                                   return;
                                 }
-                                // Altrimenti selezione standard per il gioco
                                 game.togglePlayerSelection(p.id);
                               },
                               child: _buildEnhancedPlayerAvatar(p, groupIndex, game.currentPhase, angle),
@@ -143,7 +147,7 @@ class GameTableScreen extends StatelessWidget {
                           );
                         }),
 
-                        // 4. Dealer Token (Disegna solo se il dealer è visibile tra gli attivi)
+                        // Dealer Token
                         if (visualDealerIndex != -1)
                           _buildDealerToken(radius, activeList.length, visualDealerIndex),
                       ],
@@ -229,7 +233,7 @@ class GameTableScreen extends StatelessWidget {
   }
 
   Widget _buildDealerToken(double tableRadius, int playerCount, int dealerIndex) {
-    final double tokenRadius = tableRadius - 105; // Posizionato interno (sotto le label)
+    final double tokenRadius = tableRadius - 105; 
     final double angle = (2 * pi * dealerIndex) / playerCount - (pi / 2);
     
     return Transform.translate(
@@ -248,21 +252,27 @@ class GameTableScreen extends StatelessWidget {
   }
 
   Widget _buildBottomControls(BuildContext context, GameProvider game) {
-    // FASE 1: DEALER
     if (game.currentPhase == GamePhase.dealerSelection) {
-        bool canAddMore = game.players.length < 10;
-        bool canPlay = game.players.length >= 5; // Giocatori TOTALI (o attivi?) -> Meglio attivi
-        // Raffinamento: usiamo activePlayers per il check
-        canPlay = game.activePlayers.length >= 5; 
-        
+        bool canAddMore = game.players.length < 15;
         bool isPotClean = game.canChangeBet;
         bool enableAddButton = canAddMore && isPotClean;
+
+        // CONDIZIONI DI GIOCO
+        bool hasMinPlayers = game.activePlayers.length >= 5;
+        bool hasPot = game.currentPot > 0.001; // Tolleranza float
+        
+        // "Passa" è abilitato se ci sono giocatori (serve per RIEMPIRE il piatto)
+        bool canPass = hasMinPlayers; 
+        
+        // "Gioca Mano" è abilitato solo se c'è un piatto da vincere
+        bool canStartHand = hasMinPlayers && hasPot;
 
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (!canPlay)
+            if (!hasMinPlayers)
               Padding(padding: const EdgeInsets.only(bottom: 8.0), child: Text("Minimo 5 giocatori al tavolo (${game.activePlayers.length}/5)", style: const TextStyle(color: Colors.orangeAccent, fontSize: 12))),
+            
             Row(
               children: [
                 FloatingActionButton.small(
@@ -280,18 +290,20 @@ class GameTableScreen extends StatelessWidget {
                 ),
                 const SizedBox(width: 12),
                 
+                // TASTO PASSA (Dipende da canPass)
                 Expanded(child: _buildActionButton(
                   "PASSA (+${game.baseBet.toStringAsFixed(2)})", 
-                  canPlay ? Colors.blueGrey[700]! : Colors.grey[800]!, 
-                  canPlay ? game.passHandWithoutPlaying : null
+                  canPass ? Colors.blueGrey[700]! : Colors.grey[800]!, 
+                  canPass ? game.passHandWithoutPlaying : null
                 )),
                 
                 const SizedBox(width: 12),
                 
+                // TASTO GIOCA MANO (Dipende da canStartHand)
                 Expanded(flex: 2, child: _buildActionButton(
                   "GIOCA MANO", 
-                  canPlay ? const Color(0xFF1E88E5) : const Color(0xFF1E88E5).withOpacity(0.3), 
-                  canPlay ? game.startHand : null
+                  canStartHand ? const Color(0xFF1E88E5) : const Color(0xFF1E88E5).withOpacity(0.3), 
+                  canStartHand ? game.startHand : null // Null disabilita il tasto se piatto è 0
                 )),
               ],
             ),
@@ -299,7 +311,7 @@ class GameTableScreen extends StatelessWidget {
         );
     }
 
-    // FASE 2/3: GIOCO
+    // FASE 2/3 (Picking Winners/Losers) - Invariata
     Color btnColor = game.currentPhase == GamePhase.pickingWinners ? const Color(0xFF43A047) : const Color(0xFFE53935);
     String btnText = game.currentPhase == GamePhase.pickingWinners ? "CONFERMA" : "FINE MANO";
     VoidCallback? onConfirm;
@@ -344,7 +356,7 @@ class GameTableScreen extends StatelessWidget {
     return ElevatedButton(
       style: ElevatedButton.styleFrom(
         backgroundColor: color,
-        disabledBackgroundColor: color, // Mantiene il colore (scurito) anche se disabilitato
+        disabledBackgroundColor: color, 
         disabledForegroundColor: Colors.white12,
         padding: const EdgeInsets.symmetric(vertical: 16),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -354,7 +366,7 @@ class GameTableScreen extends StatelessWidget {
     );
   }
 
-  // --- DIALOGS ---
+  // --- DIALOGS (Invariati) ---
 
   void _showAddPlayerDialog(BuildContext context) {
       final controller = TextEditingController();

@@ -2,6 +2,27 @@ import 'package:flutter/material.dart';
 import 'package:bestia_scoreboard_application/data/database_helper.dart';
 import 'package:bestia_scoreboard_application/data/model/player.dart';
 
+// Classe per memorizzare uno stato passato
+class GameSnapshot {
+  final List<Player> players;
+  final int dealerIndex;
+  final double currentPot;
+  final GamePhase currentPhase;
+  final double baseBet;
+  final List<Set<String>> selectionGroups;
+  final bool isLinkingMode;
+
+  GameSnapshot({
+    required this.players,
+    required this.dealerIndex,
+    required this.currentPot,
+    required this.currentPhase,
+    required this.baseBet,
+    required this.selectionGroups,
+    required this.isLinkingMode,
+  });
+}
+
 class GameProvider extends ChangeNotifier {
   List<Player> players = [];
   int dealerIndex = 0;
@@ -9,9 +30,11 @@ class GameProvider extends ChangeNotifier {
   GamePhase currentPhase = GamePhase.dealerSelection;
   double baseBet = 0.30; 
 
-  // Gruppi di selezione (Lista di Set di ID) per gestire società
   List<Set<String>> selectionGroups = [];
   bool isLinkingMode = false;
+
+  // STORICO UNDO (Max 3 stati)
+  final List<GameSnapshot> _history = [];
 
   bool isLoading = true;
 
@@ -19,16 +42,16 @@ class GameProvider extends ChangeNotifier {
     _loadData();
   }
   
-  // Getter: Ritorna solo i giocatori che sono seduti al tavolo
   List<Player> get activePlayers => players.where((p) => p.isActive).toList();
 
-  // Getter: Posso cambiare la messa o aggiungere/rimuovere giocatori?
-  // Solo se il piatto è vuoto (0) o contiene SOLO l'invito base corrente
   bool get canChangeBet {
     if (currentPot < 0.01) return true; 
     if ((currentPot - baseBet).abs() < 0.01) return true;
     return false;
   }
+
+  // Getter per sapere se posso fare undo
+  bool get canUndo => _history.isNotEmpty;
 
   Future<void> _loadData() async {
     final data = await DatabaseHelper.instance.loadGame();
@@ -38,7 +61,7 @@ class GameProvider extends ChangeNotifier {
       id: m['id'], 
       name: m['name'], 
       score: (m['score'] as num).toDouble(),
-      isActive: (m['is_active'] as int) == 1, // Mappa 0/1 a bool
+      isActive: (m['is_active'] as int) == 1,
     )).toList();
 
     dealerIndex = data['dealerIndex'] as int;
@@ -63,16 +86,62 @@ class GameProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // --- LOGICA UNDO ---
+
+  void _saveSnapshot() {
+    // Deep copy dei giocatori
+    final playersCopy = players.map((p) => p.copy()).toList();
+    
+    // Deep copy dei gruppi di selezione
+    final groupsCopy = selectionGroups.map((set) => Set<String>.from(set)).toList();
+
+    final snapshot = GameSnapshot(
+      players: playersCopy,
+      dealerIndex: dealerIndex,
+      currentPot: currentPot,
+      currentPhase: currentPhase,
+      baseBet: baseBet,
+      selectionGroups: groupsCopy,
+      isLinkingMode: isLinkingMode,
+    );
+
+    _history.add(snapshot);
+
+    // Mantieni solo ultimi 3 step
+    if (_history.length > 5) {
+      _history.removeAt(0); // Rimuovi il più vecchio
+    }
+  }
+
+  void undoLastAction() {
+    if (_history.isEmpty) return;
+
+    final snapshot = _history.removeLast(); // Prendi e rimuovi l'ultimo stato
+
+    // Ripristina stato
+    players = snapshot.players.map((p) => p.copy()).toList(); // Ricopia per sicurezza
+    dealerIndex = snapshot.dealerIndex;
+    currentPot = snapshot.currentPot;
+    currentPhase = snapshot.currentPhase;
+    baseBet = snapshot.baseBet;
+    selectionGroups = snapshot.selectionGroups.map((set) => Set<String>.from(set)).toList();
+    isLinkingMode = snapshot.isLinkingMode;
+
+    // Salva subito nel DB il ripristino
+    _autoSave();
+    
+    notifyListeners();
+  }
+
   // --- IMPOSTAZIONI ---
 
   void setBaseBet(double newBet) {
     double remainder = newBet % 0.30;
     if (remainder < 0.001 || (0.30 - remainder) < 0.001) {
+      _saveSnapshot(); // Undo point
       
-      // Se il piatto è pulito (ha solo la vecchia messa), aggiorniamo anche il piatto e il dealer
       if ((currentPot - baseBet).abs() < 0.01 && players.isNotEmpty) {
          double difference = newBet - baseBet;
-         // Il dealer corrente paga/riceve la differenza
          if (dealerIndex < players.length) {
             players[dealerIndex].score -= difference;
          }
@@ -88,9 +157,10 @@ class GameProvider extends ChangeNotifier {
   // --- GESTIONE GIOCATORI ---
 
   bool addPlayer(String name) {
-    if (!canChangeBet) return false; // Bloccato se piatto sporco
+    if (!canChangeBet) return false;
 
-    if (players.length < 15) { // Limite alzato visto che possono uscire
+    if (players.length < 15) { 
+      _saveSnapshot(); // Undo point
       players.add(Player(name: name));
       _autoSave();
       notifyListeners();
@@ -102,30 +172,25 @@ class GameProvider extends ChangeNotifier {
   void playerLeavesTable(String playerId) {
     if (!canChangeBet) return;
 
+    _saveSnapshot(); // Undo point
+
     final index = players.indexWhere((p) => p.id == playerId);
     if (index != -1) {
       players[index].isActive = false;
-      
-      // Se esce il dealer corrente, passiamo il token al prossimo attivo
       if (dealerIndex == index) {
         passDealerTokenToNextActive();
       }
-      
       _autoSave();
       notifyListeners();
     }
   }
 
-  // Sposta l'indice del dealer al prossimo giocatore che ha isActive = true
   void passDealerTokenToNextActive() {
      if (activePlayers.isEmpty) return;
-     
      int nextIndex = dealerIndex;
-     // Ciclo finché non trovo un attivo o torno a me stesso (se sono l'unico)
      do {
        nextIndex = (nextIndex + 1) % players.length;
      } while (!players[nextIndex].isActive && nextIndex != dealerIndex);
-     
      dealerIndex = nextIndex;
   }
 
@@ -139,7 +204,9 @@ class GameProvider extends ChangeNotifier {
   void togglePlayerSelection(String playerId) {
     if (currentPhase == GamePhase.dealerSelection) return;
 
-    // Cerca se già in un gruppo
+    // Nota: La selezione NON crea snapshot perché è reversibile cliccando.
+    // Lo snapshot si crea solo quando si "Conferma" l'azione.
+
     int existingGroupIndex = -1;
     for (int i = 0; i < selectionGroups.length; i++) {
       if (selectionGroups[i].contains(playerId)) {
@@ -148,7 +215,6 @@ class GameProvider extends ChangeNotifier {
       }
     }
 
-    // Rimuovi se presente
     if (existingGroupIndex != -1) {
       var group = selectionGroups[existingGroupIndex];
       group.remove(playerId);
@@ -159,7 +225,6 @@ class GameProvider extends ChangeNotifier {
       return;
     }
 
-    // Aggiungi
     if (isLinkingMode) {
       if (selectionGroups.isNotEmpty) {
         selectionGroups.last.add(playerId);
@@ -188,9 +253,9 @@ class GameProvider extends ChangeNotifier {
   void passHandWithoutPlaying() {
     if (activePlayers.isEmpty) return;
     
+    _saveSnapshot(); // Undo point
+
     passDealerTokenToNextActive();
-    
-    // Il nuovo dealer paga l'invito
     players[dealerIndex].score -= baseBet;
     currentPot += baseBet;
     
@@ -198,6 +263,7 @@ class GameProvider extends ChangeNotifier {
   }
 
   void startHand() {
+    _saveSnapshot(); // Undo point
     currentPhase = GamePhase.pickingWinners;
     selectionGroups.clear();
     isLinkingMode = false;
@@ -206,6 +272,8 @@ class GameProvider extends ChangeNotifier {
 
   void confirmWinners() {
     if (selectionGroups.isEmpty) return;
+
+    _saveSnapshot(); // Undo point
 
     int numberOfEntities = selectionGroups.length;
     double amountPerEntity = currentPot / numberOfEntities;
@@ -227,6 +295,8 @@ class GameProvider extends ChangeNotifier {
   }
 
   void confirmLosersAndEndHand() {
+    _saveSnapshot(); // Undo point
+
     double totalDebtToPay = currentPot; 
     double collected = 0.0;
 
@@ -243,8 +313,6 @@ class GameProvider extends ChangeNotifier {
 
     if (activePlayers.isNotEmpty) {
       passDealerTokenToNextActive();
-      
-      // Nuovo dealer mette invito
       players[dealerIndex].score -= baseBet;
       currentPot = collected + baseBet; 
     } else {
@@ -258,22 +326,23 @@ class GameProvider extends ChangeNotifier {
   }
 
   List<Player> endGame() {
-    // Restituisci invito se piatto pulito
+    // EndGame è distruttivo ma terminale. Non serve snapshot qui 
+    // perché l'utente deve confermare esplicitamente e la partita finisce.
+    
     if ((currentPot - baseBet).abs() < 0.01 && players.isNotEmpty) {
       players[dealerIndex].score += baseBet;
       currentPot = 0.0;
     }
 
-    // Ordina tutti (anche chi è uscito)
     List<Player> rankedPlayers = List.from(players);
     rankedPlayers.sort((a, b) => b.score.compareTo(a.score));
 
-    // Reset totale
     players = [];
     dealerIndex = 0;
     currentPot = 0.0;
     currentPhase = GamePhase.dealerSelection;
     selectionGroups.clear();
+    _history.clear(); // Reset storia
     _autoSave(); 
 
     return rankedPlayers;
