@@ -130,10 +130,21 @@ class GameTableScreen extends StatelessWidget {
                           
                           int groupIndex = game.getPlayerGroupIndex(p.id);
                           
+                          // --- LOGICA DISABILITAZIONE VISIVA ---
+                          bool isDisabled = false;
+                          // Se siamo in fase PickingLosers E il giocatore ha vinto questa mano, lo disabilitiamo
+                          if (game.currentPhase == GamePhase.pickingLosers) {
+                            if (game.currentHandWinners.contains(p.id)) {
+                              isDisabled = true;
+                            }
+                          }
+                          // -------------------------------------
+
                           return Transform.translate(
                             offset: Offset(playerRadius * cos(angle), playerRadius * sin(angle)),
                             child: GestureDetector(
-                              onTap: () {
+                              // Se disabilitato, il tap è null (non cliccabile)
+                              onTap: isDisabled ? null : () {
                                 if (game.currentPhase == GamePhase.dealerSelection) {
                                   if (game.canChangeBet) {
                                     _showPlayerStatsDialog(context, p);
@@ -142,7 +153,13 @@ class GameTableScreen extends StatelessWidget {
                                 }
                                 game.togglePlayerSelection(p.id);
                               },
-                              child: _buildEnhancedPlayerAvatar(p, groupIndex, game.currentPhase, angle),
+                              child: _buildEnhancedPlayerAvatar(
+                                p, 
+                                groupIndex, 
+                                game.currentPhase, 
+                                angle,
+                                isDisabled: isDisabled // Passiamo lo stato
+                              ),
                             ),
                           );
                         }),
@@ -171,18 +188,28 @@ class GameTableScreen extends StatelessWidget {
 
   // --- WIDGETS ---
 
-  Widget _buildEnhancedPlayerAvatar(Player player, int groupIndex, GamePhase phase, double angle) {
+  Widget _buildEnhancedPlayerAvatar(Player player, int groupIndex, GamePhase phase, double angle, {bool isDisabled = false}) {
     Color borderColor = Colors.white24;
     double borderWidth = 2;
     double scale = 1.0;
 
+    // Se disabilitato, riduciamo l'opacità di tutto il blocco
+    double opacity = isDisabled ? 0.3 : 1.0;
+
     List<Color> groupColors = [Colors.greenAccent, Colors.cyanAccent, Colors.orangeAccent, Colors.purpleAccent];
-    if (phase == GamePhase.pickingLosers) groupColors = [Colors.redAccent, Colors.deepOrangeAccent, Colors.pinkAccent, Colors.amber];
+    if (phase == GamePhase.pickingLosers) groupColors = [Colors.redAccent, Colors.deepOrangeAccent, Colors.pinkAccent, Colors.amberAccent];
+
+    String? groupLabel; 
+    Color groupColor = Colors.transparent;
 
     if (groupIndex != -1) {
       borderWidth = 4;
-      borderColor = groupColors[groupIndex % groupColors.length];
+      groupColor = groupColors[groupIndex % groupColors.length];
+      borderColor = groupColor;
       scale = 1.15;
+      
+      String letter = String.fromCharCode(65 + (groupIndex % 26)); 
+      groupLabel = "GRUPPO $letter";
     }
 
     String initials = player.name.isNotEmpty ? player.name[0].toUpperCase() : "?";
@@ -190,44 +217,78 @@ class GameTableScreen extends StatelessWidget {
 
     final int hash = player.name.codeUnits.fold(0, (p, c) => p + c);
     final List<Color> avatarColors = [Colors.blue.shade700, Colors.teal.shade700, Colors.indigo.shade700, Colors.deepPurple.shade700, Colors.brown.shade700];
-    final Color avatarColor = avatarColors[hash % avatarColors.length];
+    
+    // Se disabilitato, rendiamo l'avatar grigio scuro, altrimenti il suo colore
+    final Color avatarColor = isDisabled ? Colors.grey.shade800 : avatarColors[hash % avatarColors.length];
 
-    return Transform.scale(
-      scale: scale,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: borderColor, width: borderWidth),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 4, offset: const Offset(0, 2))],
-            ),
-            child: CircleAvatar(
-              radius: 26,
-              backgroundColor: avatarColor,
-              foregroundColor: Colors.white,
-              child: Text(initials, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            constraints: const BoxConstraints(maxWidth: 80),
-            decoration: BoxDecoration(
-              color: Colors.black87,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.white12),
-            ),
-            child: Column(
+    return Opacity(
+      opacity: opacity,
+      child: Transform.scale(
+        scale: scale,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.topCenter,
               children: [
-                Text(player.name, textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 2),
-                Text("${player.score.toStringAsFixed(2)}€", textAlign: TextAlign.center, style: TextStyle(color: player.score < 0 ? Colors.redAccent : Colors.greenAccent, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+                Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: borderColor, width: borderWidth),
+                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 4, offset: const Offset(0, 2))],
+                  ),
+                  child: CircleAvatar(
+                    radius: 26,
+                    backgroundColor: avatarColor,
+                    foregroundColor: Colors.white, // Se disabilitato sarà grigino per l'opacity generale
+                    child: Text(initials, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                  ),
+                ),
+
+                if (groupLabel != null)
+                  Positioned(
+                    top: -12, 
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: groupColor, 
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.white, width: 1.5), 
+                        boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 2)],
+                      ),
+                      child: Text(
+                        groupLabel,
+                        style: const TextStyle(
+                          color: Colors.black87, 
+                          fontSize: 9, 
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.5
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
-          ),
-        ],
+            const SizedBox(height: 6), 
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              constraints: const BoxConstraints(maxWidth: 80),
+              decoration: BoxDecoration(
+                color: Colors.black87,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.white12),
+              ),
+              child: Column(
+                children: [
+                  Text(player.name, textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 2),
+                  Text("${player.score.toStringAsFixed(2)}€", textAlign: TextAlign.center, style: TextStyle(color: player.score < 0 ? Colors.redAccent : Colors.greenAccent, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -257,14 +318,10 @@ class GameTableScreen extends StatelessWidget {
         bool isPotClean = game.canChangeBet;
         bool enableAddButton = canAddMore && isPotClean;
 
-        // CONDIZIONI DI GIOCO
         bool hasMinPlayers = game.activePlayers.length >= 5;
-        bool hasPot = game.currentPot > 0.001; // Tolleranza float
+        bool hasPot = game.currentPot > 0.001; 
         
-        // "Passa" è abilitato se ci sono giocatori (serve per RIEMPIRE il piatto)
         bool canPass = hasMinPlayers; 
-        
-        // "Gioca Mano" è abilitato solo se c'è un piatto da vincere
         bool canStartHand = hasMinPlayers && hasPot;
 
         return Column(
@@ -290,7 +347,6 @@ class GameTableScreen extends StatelessWidget {
                 ),
                 const SizedBox(width: 12),
                 
-                // TASTO PASSA (Dipende da canPass)
                 Expanded(child: _buildActionButton(
                   "PASSA (+${game.baseBet.toStringAsFixed(2)})", 
                   canPass ? Colors.blueGrey[700]! : Colors.grey[800]!, 
@@ -299,11 +355,10 @@ class GameTableScreen extends StatelessWidget {
                 
                 const SizedBox(width: 12),
                 
-                // TASTO GIOCA MANO (Dipende da canStartHand)
                 Expanded(flex: 2, child: _buildActionButton(
                   "GIOCA MANO", 
                   canStartHand ? const Color(0xFF1E88E5) : const Color(0xFF1E88E5).withOpacity(0.3), 
-                  canStartHand ? game.startHand : null // Null disabilita il tasto se piatto è 0
+                  canStartHand ? game.startHand : null 
                 )),
               ],
             ),
@@ -311,7 +366,6 @@ class GameTableScreen extends StatelessWidget {
         );
     }
 
-    // FASE 2/3 (Picking Winners/Losers) - Invariata
     Color btnColor = game.currentPhase == GamePhase.pickingWinners ? const Color(0xFF43A047) : const Color(0xFFE53935);
     String btnText = game.currentPhase == GamePhase.pickingWinners ? "CONFERMA" : "FINE MANO";
     VoidCallback? onConfirm;

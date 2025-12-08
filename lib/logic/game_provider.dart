@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:bestia_scoreboard_application/data/database_helper.dart';
 import 'package:bestia_scoreboard_application/data/model/player.dart';
 
-// Classe per memorizzare uno stato passato
+// Classe per memorizzare uno stato passato (Snapshot)
 class GameSnapshot {
   final List<Player> players;
   final int dealerIndex;
@@ -11,6 +11,7 @@ class GameSnapshot {
   final double baseBet;
   final List<Set<String>> selectionGroups;
   final bool isLinkingMode;
+  final Set<String> currentHandWinners; 
 
   GameSnapshot({
     required this.players,
@@ -20,6 +21,7 @@ class GameSnapshot {
     required this.baseBet,
     required this.selectionGroups,
     required this.isLinkingMode,
+    required this.currentHandWinners,
   });
 }
 
@@ -30,10 +32,14 @@ class GameProvider extends ChangeNotifier {
   GamePhase currentPhase = GamePhase.dealerSelection;
   double baseBet = 0.30; 
 
+  // Gestione Gruppi/Società
   List<Set<String>> selectionGroups = [];
   bool isLinkingMode = false;
 
-  // STORICO UNDO (Max 3 stati)
+  // Memoria temporanea dei vincitori per validazione logica
+  Set<String> currentHandWinners = {};
+
+  // STORICO UNDO (Max 5 stati)
   final List<GameSnapshot> _history = [];
 
   bool isLoading = true;
@@ -42,16 +48,17 @@ class GameProvider extends ChangeNotifier {
     _loadData();
   }
   
+  // Getter utili
   List<Player> get activePlayers => players.where((p) => p.isActive).toList();
+  bool get canUndo => _history.isNotEmpty;
 
+  // Posso cambiare impostazioni/giocatori solo se il piatto è "pulito"
+  // (cioè contiene 0 o ESATTAMENTE la baseBet corrente)
   bool get canChangeBet {
     if (currentPot < 0.01) return true; 
     if ((currentPot - baseBet).abs() < 0.01) return true;
     return false;
   }
-
-  // Getter per sapere se posso fare undo
-  bool get canUndo => _history.isNotEmpty;
 
   Future<void> _loadData() async {
     final data = await DatabaseHelper.instance.loadGame();
@@ -89,11 +96,10 @@ class GameProvider extends ChangeNotifier {
   // --- LOGICA UNDO ---
 
   void _saveSnapshot() {
-    // Deep copy dei giocatori
+    // Deep Copy
     final playersCopy = players.map((p) => p.copy()).toList();
-    
-    // Deep copy dei gruppi di selezione
     final groupsCopy = selectionGroups.map((set) => Set<String>.from(set)).toList();
+    final winnersCopy = Set<String>.from(currentHandWinners);
 
     final snapshot = GameSnapshot(
       players: playersCopy,
@@ -103,33 +109,33 @@ class GameProvider extends ChangeNotifier {
       baseBet: baseBet,
       selectionGroups: groupsCopy,
       isLinkingMode: isLinkingMode,
+      currentHandWinners: winnersCopy,
     );
 
     _history.add(snapshot);
 
-    // Mantieni solo ultimi 3 step
+    // Limite storico a 5
     if (_history.length > 5) {
-      _history.removeAt(0); // Rimuovi il più vecchio
+      _history.removeAt(0); 
     }
   }
 
   void undoLastAction() {
     if (_history.isEmpty) return;
 
-    final snapshot = _history.removeLast(); // Prendi e rimuovi l'ultimo stato
+    final snapshot = _history.removeLast();
 
-    // Ripristina stato
-    players = snapshot.players.map((p) => p.copy()).toList(); // Ricopia per sicurezza
+    // Ripristino Deep Copy
+    players = snapshot.players.map((p) => p.copy()).toList();
     dealerIndex = snapshot.dealerIndex;
     currentPot = snapshot.currentPot;
     currentPhase = snapshot.currentPhase;
     baseBet = snapshot.baseBet;
     selectionGroups = snapshot.selectionGroups.map((set) => Set<String>.from(set)).toList();
     isLinkingMode = snapshot.isLinkingMode;
+    currentHandWinners = Set<String>.from(snapshot.currentHandWinners);
 
-    // Salva subito nel DB il ripristino
     _autoSave();
-    
     notifyListeners();
   }
 
@@ -138,8 +144,9 @@ class GameProvider extends ChangeNotifier {
   void setBaseBet(double newBet) {
     double remainder = newBet % 0.30;
     if (remainder < 0.001 || (0.30 - remainder) < 0.001) {
-      _saveSnapshot(); // Undo point
+      _saveSnapshot();
       
+      // Se piatto pulito, aggiorniamo anche il piatto e il dealer corrente
       if ((currentPot - baseBet).abs() < 0.01 && players.isNotEmpty) {
          double difference = newBet - baseBet;
          if (dealerIndex < players.length) {
@@ -160,8 +167,18 @@ class GameProvider extends ChangeNotifier {
     if (!canChangeBet) return false;
 
     if (players.length < 15) { 
-      _saveSnapshot(); // Undo point
-      players.add(Player(name: name));
+      _saveSnapshot();
+      
+      final newPlayer = Player(name: name);
+      players.add(newPlayer);
+
+      // CORREZIONE: Il primo giocatore paga subito l'invito
+      if (players.length == 1) {
+        dealerIndex = 0; 
+        newPlayer.score -= baseBet; 
+        currentPot = baseBet; 
+      }
+
       _autoSave();
       notifyListeners();
       return true;
@@ -172,7 +189,7 @@ class GameProvider extends ChangeNotifier {
   void playerLeavesTable(String playerId) {
     if (!canChangeBet) return;
 
-    _saveSnapshot(); // Undo point
+    _saveSnapshot();
 
     final index = players.indexWhere((p) => p.id == playerId);
     if (index != -1) {
@@ -201,11 +218,16 @@ class GameProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void togglePlayerSelection(String playerId) {
-    if (currentPhase == GamePhase.dealerSelection) return;
+  // Ritorna false se l'azione è bloccata (es. seleziono vincitore come perdente)
+  bool togglePlayerSelection(String playerId) {
+    if (currentPhase == GamePhase.dealerSelection) return false;
 
-    // Nota: La selezione NON crea snapshot perché è reversibile cliccando.
-    // Lo snapshot si crea solo quando si "Conferma" l'azione.
+    // VALIDAZIONE LOGICA
+    if (currentPhase == GamePhase.pickingLosers) {
+      if (currentHandWinners.contains(playerId)) {
+        return false; // BLOCCATO: Ha vinto questa mano
+      }
+    }
 
     int existingGroupIndex = -1;
     for (int i = 0; i < selectionGroups.length; i++) {
@@ -222,7 +244,7 @@ class GameProvider extends ChangeNotifier {
         selectionGroups.removeAt(existingGroupIndex);
       } 
       notifyListeners();
-      return;
+      return true;
     }
 
     if (isLinkingMode) {
@@ -233,12 +255,13 @@ class GameProvider extends ChangeNotifier {
       }
     } else {
       if (currentPhase == GamePhase.pickingWinners && selectionGroups.length >= 3) {
-        return; 
+        return false; 
       }
       selectionGroups.add({playerId});
     }
     
     notifyListeners();
+    return true;
   }
 
   int getPlayerGroupIndex(String playerId) {
@@ -253,7 +276,7 @@ class GameProvider extends ChangeNotifier {
   void passHandWithoutPlaying() {
     if (activePlayers.isEmpty) return;
     
-    _saveSnapshot(); // Undo point
+    _saveSnapshot();
 
     passDealerTokenToNextActive();
     players[dealerIndex].score -= baseBet;
@@ -263,9 +286,10 @@ class GameProvider extends ChangeNotifier {
   }
 
   void startHand() {
-    _saveSnapshot(); // Undo point
+    _saveSnapshot();
     currentPhase = GamePhase.pickingWinners;
     selectionGroups.clear();
+    currentHandWinners.clear();
     isLinkingMode = false;
     _autoSave();
   }
@@ -273,12 +297,16 @@ class GameProvider extends ChangeNotifier {
   void confirmWinners() {
     if (selectionGroups.isEmpty) return;
 
-    _saveSnapshot(); // Undo point
+    _saveSnapshot();
 
     int numberOfEntities = selectionGroups.length;
     double amountPerEntity = currentPot / numberOfEntities;
+    
+    currentHandWinners.clear();
 
     for (var group in selectionGroups) {
+      currentHandWinners.addAll(group); // Memorizza chi ha vinto
+
       int membersCount = group.length;
       double amountPerPlayer = amountPerEntity / membersCount;
 
@@ -295,7 +323,7 @@ class GameProvider extends ChangeNotifier {
   }
 
   void confirmLosersAndEndHand() {
-    _saveSnapshot(); // Undo point
+    _saveSnapshot();
 
     double totalDebtToPay = currentPot; 
     double collected = 0.0;
@@ -310,6 +338,8 @@ class GameProvider extends ChangeNotifier {
         collected += penaltyPerPlayer;
       }
     }
+    
+    currentHandWinners.clear(); // Reset memoria vincitori
 
     if (activePlayers.isNotEmpty) {
       passDealerTokenToNextActive();
@@ -326,9 +356,6 @@ class GameProvider extends ChangeNotifier {
   }
 
   List<Player> endGame() {
-    // EndGame è distruttivo ma terminale. Non serve snapshot qui 
-    // perché l'utente deve confermare esplicitamente e la partita finisce.
-    
     if ((currentPot - baseBet).abs() < 0.01 && players.isNotEmpty) {
       players[dealerIndex].score += baseBet;
       currentPot = 0.0;
@@ -342,7 +369,8 @@ class GameProvider extends ChangeNotifier {
     currentPot = 0.0;
     currentPhase = GamePhase.dealerSelection;
     selectionGroups.clear();
-    _history.clear(); // Reset storia
+    currentHandWinners.clear();
+    _history.clear(); 
     _autoSave(); 
 
     return rankedPlayers;
