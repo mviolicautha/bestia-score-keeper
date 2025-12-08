@@ -9,11 +9,8 @@ class GameProvider extends ChangeNotifier {
   GamePhase currentPhase = GamePhase.dealerSelection;
   double baseBet = 0.30; 
 
-  // NUOVA STRUTTURA SELEZIONE: Lista di Gruppi
-  // Ogni elemento della lista è un Set di ID che formano un'entità (singola o società)
+  // Gruppi di selezione (Lista di Set di ID) per gestire società
   List<Set<String>> selectionGroups = [];
-
-  // Modalità "Link" attiva? Se true, i click aggiungono all'ultimo gruppo creato invece di crearne uno nuovo
   bool isLinkingMode = false;
 
   bool isLoading = true;
@@ -21,14 +18,27 @@ class GameProvider extends ChangeNotifier {
   GameProvider() {
     _loadData();
   }
+  
+  // Getter: Ritorna solo i giocatori che sono seduti al tavolo
+  List<Player> get activePlayers => players.where((p) => p.isActive).toList();
+
+  // Getter: Posso cambiare la messa o aggiungere/rimuovere giocatori?
+  // Solo se il piatto è vuoto (0) o contiene SOLO l'invito base corrente
+  bool get canChangeBet {
+    if (currentPot < 0.01) return true; 
+    if ((currentPot - baseBet).abs() < 0.01) return true;
+    return false;
+  }
 
   Future<void> _loadData() async {
     final data = await DatabaseHelper.instance.loadGame();
+    
     final playerList = data['players'] as List<Map<String, dynamic>>;
     players = playerList.map((m) => Player(
       id: m['id'], 
       name: m['name'], 
       score: (m['score'] as num).toDouble(),
+      isActive: (m['is_active'] as int) == 1, // Mappa 0/1 a bool
     )).toList();
 
     dealerIndex = data['dealerIndex'] as int;
@@ -47,58 +57,89 @@ class GameProvider extends ChangeNotifier {
   }
 
   void _autoSave() {
-    // Nota: Non salviamo la selezione temporanea nel DB perché è effimera. 
-    // Se l'app crasha mentre selezioni i vincitori, al riavvio dovrai riselezionarli.
     DatabaseHelper.instance.saveGame(
       players, dealerIndex, currentPot, currentPhase.index, baseBet
     );
     notifyListeners();
   }
 
+  // --- IMPOSTAZIONI ---
+
   void setBaseBet(double newBet) {
     double remainder = newBet % 0.30;
-    if (remainder < 0.001 || (0.30 - remainder) < 0.001) {     
+    if (remainder < 0.001 || (0.30 - remainder) < 0.001) {
+      
+      // Se il piatto è pulito (ha solo la vecchia messa), aggiorniamo anche il piatto e il dealer
       if ((currentPot - baseBet).abs() < 0.01 && players.isNotEmpty) {
          double difference = newBet - baseBet;
-         players[dealerIndex].score -= difference;
+         // Il dealer corrente paga/riceve la differenza
+         if (dealerIndex < players.length) {
+            players[dealerIndex].score -= difference;
+         }
          currentPot = newBet;
       }
+
       baseBet = newBet;
       _autoSave();
       notifyListeners();
-    } else {
-      debugPrint("Messa non valida: $newBet");
     }
   }
 
+  // --- GESTIONE GIOCATORI ---
 
-  void addPlayer(String name) {
-    if (players.length < 10) {
+  bool addPlayer(String name) {
+    if (!canChangeBet) return false; // Bloccato se piatto sporco
+
+    if (players.length < 15) { // Limite alzato visto che possono uscire
       players.add(Player(name: name));
       _autoSave();
+      notifyListeners();
+      return true;
+    }
+    return false;
+  }
+  
+  void playerLeavesTable(String playerId) {
+    if (!canChangeBet) return;
+
+    final index = players.indexWhere((p) => p.id == playerId);
+    if (index != -1) {
+      players[index].isActive = false;
+      
+      // Se esce il dealer corrente, passiamo il token al prossimo attivo
+      if (dealerIndex == index) {
+        passDealerTokenToNextActive();
+      }
+      
+      _autoSave();
+      notifyListeners();
     }
   }
 
-  // --- NUOVA LOGICA DI SELEZIONE ---
+  // Sposta l'indice del dealer al prossimo giocatore che ha isActive = true
+  void passDealerTokenToNextActive() {
+     if (activePlayers.isEmpty) return;
+     
+     int nextIndex = dealerIndex;
+     // Ciclo finché non trovo un attivo o torno a me stesso (se sono l'unico)
+     do {
+       nextIndex = (nextIndex + 1) % players.length;
+     } while (!players[nextIndex].isActive && nextIndex != dealerIndex);
+     
+     dealerIndex = nextIndex;
+  }
 
-  // Attiva/Disattiva la modalità Creazione Società
+  // --- SELEZIONE (SOCIETÀ) ---
+
   void toggleLinkingMode() {
     isLinkingMode = !isLinkingMode;
-    // Se attivo la modalità link, preparo un nuovo gruppo vuoto se l'ultimo è pieno/chiuso?
-    // No, la logica è:
-    // 1. Clicco "Link" -> Diventa attivo.
-    // 2. Clicco Player A -> Crea Gruppo X con A.
-    // 3. Clicco Player B -> Aggiunge B al Gruppo X.
-    // 4. Clicco Player C -> Aggiunge C al Gruppo X.
-    // 5. Spengo "Link".
-    // 6. Clicco Player D -> Crea Gruppo Y con D (singolo).
     notifyListeners();
   }
 
   void togglePlayerSelection(String playerId) {
     if (currentPhase == GamePhase.dealerSelection) return;
 
-    // 1. Cerca se il giocatore è già in un gruppo
+    // Cerca se già in un gruppo
     int existingGroupIndex = -1;
     for (int i = 0; i < selectionGroups.length; i++) {
       if (selectionGroups[i].contains(playerId)) {
@@ -107,35 +148,26 @@ class GameProvider extends ChangeNotifier {
       }
     }
 
-    // CASO A: Il giocatore è GIÀ selezionato -> LO RIMUOVIAMO
+    // Rimuovi se presente
     if (existingGroupIndex != -1) {
       var group = selectionGroups[existingGroupIndex];
       group.remove(playerId);
-      // Se il gruppo diventa vuoto, lo eliminiamo
       if (group.isEmpty) {
         selectionGroups.removeAt(existingGroupIndex);
       } 
-      // Se il gruppo aveva altri membri, restano lì (separazione dalla società)
       notifyListeners();
       return;
     }
 
-    // CASO B: Il giocatore NON è selezionato -> LO AGGIUNGIAMO
-
+    // Aggiungi
     if (isLinkingMode) {
-      // Se siamo in modalità LINK, cerchiamo l'ultimo gruppo attivo o ne creiamo uno
       if (selectionGroups.isNotEmpty) {
-        // Aggiungiamo all'ultimo gruppo creato
         selectionGroups.last.add(playerId);
       } else {
-        // Se non ci sono gruppi, ne creiamo uno nuovo
         selectionGroups.add({playerId});
       }
     } else {
-      // Modalità NORMALE (Singolo): Crea sempre un nuovo gruppo da 1
-      // Controllo limiti solo per vincitori (Max 3 entità vincenti?)
       if (currentPhase == GamePhase.pickingWinners && selectionGroups.length >= 3) {
-        // Limite raggiunto di GRUPPI, non di persone
         return; 
       }
       selectionGroups.add({playerId});
@@ -143,9 +175,7 @@ class GameProvider extends ChangeNotifier {
     
     notifyListeners();
   }
-  
-  // Helper per sapere il colore/gruppo di un player nella UI
-  // Restituisce l'indice del gruppo (0, 1, 2...) o -1 se non selezionato
+
   int getPlayerGroupIndex(String playerId) {
     for (int i = 0; i < selectionGroups.length; i++) {
       if (selectionGroups[i].contains(playerId)) return i;
@@ -153,13 +183,17 @@ class GameProvider extends ChangeNotifier {
     return -1;
   }
 
-  // --- GESTIONE FASI ---
+  // --- FLUSSO DI GIOCO ---
 
   void passHandWithoutPlaying() {
-    if (players.isEmpty) return;
-    dealerIndex = (dealerIndex + 1) % players.length;
+    if (activePlayers.isEmpty) return;
+    
+    passDealerTokenToNextActive();
+    
+    // Il nuovo dealer paga l'invito
     players[dealerIndex].score -= baseBet;
     currentPot += baseBet;
+    
     _autoSave();
   }
 
@@ -173,11 +207,9 @@ class GameProvider extends ChangeNotifier {
   void confirmWinners() {
     if (selectionGroups.isEmpty) return;
 
-    // 1. Dividiamo il piatto per il numero di ENTITÀ (Gruppi)
     int numberOfEntities = selectionGroups.length;
     double amountPerEntity = currentPot / numberOfEntities;
 
-    // 2. Distribuiamo la vincita dentro ogni gruppo
     for (var group in selectionGroups) {
       int membersCount = group.length;
       double amountPerPlayer = amountPerEntity / membersCount;
@@ -194,18 +226,10 @@ class GameProvider extends ChangeNotifier {
     _autoSave();
   }
 
-  void confirmLosersAndEndHand() 
-  {
-    // NOTA: Qui NON controlliamo if (selectionGroups.isEmpty) return;
-    // È perfettamente lecito che non ci siano perdenti.
-    
-    // La penalità TOTALE da recuperare è pari al piatto precedente
+  void confirmLosersAndEndHand() {
     double totalDebtToPay = currentPot; 
-    
     double collected = 0.0;
 
-    // Se selectionGroups è vuoto, questo ciclo salta e collected resta 0.0
-    // Corretto: nessuno paga nulla.
     for (var group in selectionGroups) {
       int membersCount = group.length;
       double penaltyPerPlayer = totalDebtToPay / membersCount;
@@ -217,14 +241,11 @@ class GameProvider extends ChangeNotifier {
       }
     }
 
-    if (players.isNotEmpty) {
-      dealerIndex = (dealerIndex + 1) % players.length;
+    if (activePlayers.isNotEmpty) {
+      passDealerTokenToNextActive();
       
-      // Nuovo Dealer mette invito
-      Player newDealer = players[dealerIndex];
-      newDealer.score -= baseBet;
-      
-      // Nuovo Piatto = Penalità raccolte + Invito base
+      // Nuovo dealer mette invito
+      players[dealerIndex].score -= baseBet;
       currentPot = collected + baseBet; 
     } else {
       currentPot = 0.0;
@@ -236,21 +257,18 @@ class GameProvider extends ChangeNotifier {
     _autoSave();
   }
 
-
   List<Player> endGame() {
+    // Restituisci invito se piatto pulito
     if ((currentPot - baseBet).abs() < 0.01 && players.isNotEmpty) {
       players[dealerIndex].score += baseBet;
       currentPot = 0.0;
     }
 
-    double totalScore = players.fold(0.0, (sum, p) => sum + p.score);
-    if (totalScore.abs() > 0.01) {
-      debugPrint("ERRORE CONTABILE: $totalScore");
-    }
-
+    // Ordina tutti (anche chi è uscito)
     List<Player> rankedPlayers = List.from(players);
     rankedPlayers.sort((a, b) => b.score.compareTo(a.score));
 
+    // Reset totale
     players = [];
     dealerIndex = 0;
     currentPot = 0.0;
@@ -259,12 +277,5 @@ class GameProvider extends ChangeNotifier {
     _autoSave(); 
 
     return rankedPlayers;
-  }
-
-  bool get canChangeBet {
-    // Tolleranza float
-    if (currentPot < 0.01) return true; // Piatto vuoto
-    if ((currentPot - baseBet).abs() < 0.01) return true; // Piatto ha solo l'invito
-    return false; // Piatto sporco (penalità in corso)
   }
 }

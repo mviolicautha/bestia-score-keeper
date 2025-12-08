@@ -34,11 +34,12 @@ class GameTableScreen extends StatelessWidget {
       appBar: AppBar(
         title: Text(statusText, style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 18)),
         centerTitle: true,
-        backgroundColor: const Color(0xFF1A233A), // Blu ancora più scuro per contrasto
+        backgroundColor: const Color(0xFF1A233A), 
         elevation: 0,
         actions: [
           IconButton(
             icon: Icon(Icons.settings, color: game.canChangeBet ? Colors.white : Colors.white24),
+            tooltip: "Imposta Messa",
             onPressed: () {
               if (game.canChangeBet) {
                 _showSettingsDialog(context);
@@ -47,13 +48,17 @@ class GameTableScreen extends StatelessWidget {
               }
             },
           ),
-          IconButton(icon: const Icon(Icons.flag, color: Colors.redAccent), onPressed: () => _showEndGameDialog(context)),
+          IconButton(
+            icon: const Icon(Icons.flag, color: Colors.redAccent), 
+            tooltip: "Termina Partita",
+            onPressed: () => _showEndGameDialog(context)
+          ),
         ],
       ),
       backgroundColor: const Color(0xFF1A233A),
       body: Column(
         children: [
-          // HEADER PIATTO (Più compatto)
+          // HEADER PIATTO
           Container(
             padding: const EdgeInsets.symmetric(vertical: 10),
             child: Column(
@@ -69,50 +74,49 @@ class GameTableScreen extends StatelessWidget {
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                // Massimizziamo il tavolo
-                // Lasciamo meno margine (20px)
                 final double tableDiameter = min(constraints.maxWidth, constraints.maxHeight) - 20;
                 final double radius = tableDiameter / 2;
+
+                // Usiamo SOLO i giocatori attivi per il rendering
+                final activeList = game.activePlayers;
+
+                // Calcolo Dealer Index VISUALE (perché activeList è diversa da game.players globale)
+                int visualDealerIndex = -1;
+                if (game.players.isNotEmpty) {
+                  final dealerPlayer = game.players[game.dealerIndex];
+                  visualDealerIndex = activeList.indexWhere((p) => p.id == dealerPlayer.id);
+                }
 
                 return Center(
                   child: SizedBox(
                     width: tableDiameter, height: tableDiameter,
                     child: Stack(
                       alignment: Alignment.center,
-                      clipBehavior: Clip.none, // Permette agli avatar di sbordare un po'
+                      clipBehavior: Clip.none, 
                       children: [
-                        // 1. Tavolo (Panno)
+                        // 1. Tavolo
                         Container(
                           decoration: BoxDecoration(
-                            color: const Color(0xFF2E7D32), // Verde più intenso
+                            color: const Color(0xFF2E7D32),
                             shape: BoxShape.circle,
-                            border: Border.all(color: const Color(0xFF4E342E), width: 8), // Bordo più sottile
+                            border: Border.all(color: const Color(0xFF4E342E), width: 8),
                             boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 25, spreadRadius: 5)],
                           ),
                         ),
                         
-                        // 2. Logo Centrale (Decorativo)
-                       Opacity
-                       (
+                        // 2. Logo Centrale
+                        Opacity(
                           opacity: 0.1,
                           child: Text(
-                            "\u2660", // Simbolo Picche Unicode
-                            style: TextStyle(
-                              fontSize: tableDiameter * 0.5, 
-                              color: Colors.black,
-                              height: 1.0, // Rimuove padding verticale extra del font
-                            ),
+                            "\u2660", // Picche Unicode
+                            style: TextStyle(fontSize: tableDiameter * 0.5, color: Colors.black, height: 1.0),
                           ),
                         ),
 
-                        // 3. Giocatori
-                        ...List.generate(game.players.length, (index) {
-                          final p = game.players[index];
-                          // Distribuzione angolare
-                          final double angle = (2 * pi * index) / game.players.length - (pi / 2);
-                          
-                          // Raggio posizionamento: Li mettiamo quasi sul bordo
-                          // radius - 35px offset per centrare l'avatar sul bordo interno
+                        // 3. Giocatori (Solo Attivi)
+                        ...List.generate(activeList.length, (index) {
+                          final p = activeList[index];
+                          final double angle = (2 * pi * index) / activeList.length - (pi / 2);
                           final double playerRadius = radius - 35; 
                           
                           int groupIndex = game.getPlayerGroupIndex(p.id);
@@ -120,15 +124,28 @@ class GameTableScreen extends StatelessWidget {
                           return Transform.translate(
                             offset: Offset(playerRadius * cos(angle), playerRadius * sin(angle)),
                             child: GestureDetector(
-                              onTap: () => game.togglePlayerSelection(p.id),
+                              onTap: () {
+                                // GESTIONE CLICK INTELLIGENTE
+                                // Se siamo in fase 1 e il piatto è pulito -> Mostra Stats/Abbandona
+                                if (game.currentPhase == GamePhase.dealerSelection) {
+                                  if (game.canChangeBet) {
+                                    _showPlayerStatsDialog(context, p);
+                                  } else {
+                                    // Feedback opzionale: non succede nulla o mini vibrazione
+                                  }
+                                  return;
+                                }
+                                // Altrimenti selezione standard per il gioco
+                                game.togglePlayerSelection(p.id);
+                              },
                               child: _buildEnhancedPlayerAvatar(p, groupIndex, game.currentPhase, angle),
                             ),
                           );
                         }),
 
-                        // 4. Dealer Token
-                        if (game.players.isNotEmpty)
-                          _buildDealerToken(radius, game.players.length, game.dealerIndex),
+                        // 4. Dealer Token (Disegna solo se il dealer è visibile tra gli attivi)
+                        if (visualDealerIndex != -1)
+                          _buildDealerToken(radius, activeList.length, visualDealerIndex),
                       ],
                     ),
                   ),
@@ -148,10 +165,10 @@ class GameTableScreen extends StatelessWidget {
     );
   }
 
-  // --- NUOVO WIDGET AVATAR MIGLIORATO ---
+  // --- WIDGETS ---
+
   Widget _buildEnhancedPlayerAvatar(Player player, int groupIndex, GamePhase phase, double angle) {
-    // Determina colori bordo selezione
-    Color borderColor = Colors.white24; // Default bordo sottile
+    Color borderColor = Colors.white24;
     double borderWidth = 2;
     double scale = 1.0;
 
@@ -161,16 +178,12 @@ class GameTableScreen extends StatelessWidget {
     if (groupIndex != -1) {
       borderWidth = 4;
       borderColor = groupColors[groupIndex % groupColors.length];
-      scale = 1.15; // Leggero ingrandimento se selezionato
+      scale = 1.15;
     }
 
-    // Genera iniziali (Max 2 caratteri)
     String initials = player.name.isNotEmpty ? player.name[0].toUpperCase() : "?";
-    if (player.name.length > 1) {
-      initials += player.name[1].toLowerCase(); // Es: "Ma"
-    }
+    if (player.name.length > 1) initials += player.name[1].toLowerCase();
 
-    // Colore Avatar deterministico basato sul nome (così "Marco" è sempre Blu, "Anna" è Rossa)
     final int hash = player.name.codeUnits.fold(0, (p, c) => p + c);
     final List<Color> avatarColors = [Colors.blue.shade700, Colors.teal.shade700, Colors.indigo.shade700, Colors.deepPurple.shade700, Colors.brown.shade700];
     final Color avatarColor = avatarColors[hash % avatarColors.length];
@@ -180,7 +193,6 @@ class GameTableScreen extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // AVATAR CERCHIO
           Container(
             decoration: BoxDecoration(
               shape: BoxShape.circle,
@@ -188,19 +200,16 @@ class GameTableScreen extends StatelessWidget {
               boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 4, offset: const Offset(0, 2))],
             ),
             child: CircleAvatar(
-              radius: 26, // Più grande (era 22)
+              radius: 26,
               backgroundColor: avatarColor,
               foregroundColor: Colors.white,
               child: Text(initials, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
             ),
           ),
-          
           const SizedBox(height: 4),
-
-          // ETICHETTA NOME & SCORE
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            constraints: const BoxConstraints(maxWidth: 80), // Max larghezza per evitare overflow
+            constraints: const BoxConstraints(maxWidth: 80),
             decoration: BoxDecoration(
               color: Colors.black87,
               borderRadius: BorderRadius.circular(8),
@@ -208,23 +217,9 @@ class GameTableScreen extends StatelessWidget {
             ),
             child: Column(
               children: [
-                Text(
-                  player.name, 
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                ),
+                Text(player.name, textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 2),
-                Text(
-                  "${player.score.toStringAsFixed(2)}€", 
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: player.score < 0 ? Colors.redAccent : Colors.greenAccent, 
-                    fontSize: 11, 
-                    fontWeight: FontWeight.w900
-                  ),
-                ),
+                Text("${player.score.toStringAsFixed(2)}€", textAlign: TextAlign.center, style: TextStyle(color: player.score < 0 ? Colors.redAccent : Colors.greenAccent, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
               ],
             ),
           ),
@@ -234,57 +229,77 @@ class GameTableScreen extends StatelessWidget {
   }
 
   Widget _buildDealerToken(double tableRadius, int playerCount, int dealerIndex) {
-    final double tokenRadius = tableRadius - 105; // Posizionato più interno
+    final double tokenRadius = tableRadius - 105; // Posizionato interno (sotto le label)
     final double angle = (2 * pi * dealerIndex) / playerCount - (pi / 2);
     
     return Transform.translate(
       offset: Offset(tokenRadius * cos(angle), tokenRadius * sin(angle)),
       child: Container(
-        width: 32, height: 32,
+        width: 28, height: 28,
         decoration: BoxDecoration(
           gradient: const LinearGradient(colors: [Color(0xFFFFD700), Color(0xFFFFA000)]),
           shape: BoxShape.circle,
           border: Border.all(color: Colors.white, width: 2),
-          boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 4)],
+          boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 4, offset: Offset(0, 2))],
         ),
-        child: const Center(child: Text("D", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87))),
+        child: const Center(child: Text("D", style: TextStyle(fontWeight: FontWeight.w900, color: Colors.black87, fontSize: 12))),
       ),
     );
   }
 
-  // --- CONTROLLI (Con pulsante Link migliorato) ---
   Widget _buildBottomControls(BuildContext context, GameProvider game) {
+    // FASE 1: DEALER
     if (game.currentPhase == GamePhase.dealerSelection) {
         bool canAddMore = game.players.length < 10;
-        bool isPotClean = game.canChangeBet; 
+        bool canPlay = game.players.length >= 5; // Giocatori TOTALI (o attivi?) -> Meglio attivi
+        // Raffinamento: usiamo activePlayers per il check
+        canPlay = game.activePlayers.length >= 5; 
+        
+        bool isPotClean = game.canChangeBet;
         bool enableAddButton = canAddMore && isPotClean;
-        bool canPlay = game.players.length >= 5;
-        Color passButtonColor = canPlay ? Colors.blueGrey[700]! : Colors.grey[800]!;
-        Color playButtonColor = canPlay ? const Color(0xFF1E88E5) : const Color(0xFF1E88E5).withOpacity(0.3);
+
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (!canPlay)
-              Padding(padding: const EdgeInsets.only(bottom: 8.0), child: Text("Minimo 5 giocatori (${game.players.length}/5)", style: const TextStyle(color: Colors.orangeAccent, fontSize: 12))),
+              Padding(padding: const EdgeInsets.only(bottom: 8.0), child: Text("Minimo 5 giocatori al tavolo (${game.activePlayers.length}/5)", style: const TextStyle(color: Colors.orangeAccent, fontSize: 12))),
             Row(
               children: [
                 FloatingActionButton.small(
                   heroTag: "add", 
                   backgroundColor: enableAddButton ? Colors.blueGrey : Colors.grey[800], 
-                  onPressed: enableAddButton ? () => _showAddPlayerDialog(context) : null, 
-                  child: Icon(Icons.person_add, color: canAddMore ? Colors.white : Colors.white24)
+                  onPressed: () {
+                    if (!canAddMore) return; 
+                    if (!isPotClean) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Impossibile aggiungere giocatori a partita in corso!"), backgroundColor: Colors.orange));
+                    } else {
+                      _showAddPlayerDialog(context);
+                    }
+                  }, 
+                  child: Icon(Icons.person_add, color: enableAddButton ? Colors.white : Colors.white24)
                 ),
                 const SizedBox(width: 12),
-                Expanded(child: _buildActionButton("PASSA (+${game.baseBet.toStringAsFixed(2)})", passButtonColor, canPlay ? game.passHandWithoutPlaying : null)),
+                
+                Expanded(child: _buildActionButton(
+                  "PASSA (+${game.baseBet.toStringAsFixed(2)})", 
+                  canPlay ? Colors.blueGrey[700]! : Colors.grey[800]!, 
+                  canPlay ? game.passHandWithoutPlaying : null
+                )),
+                
                 const SizedBox(width: 12),
-                Expanded(flex: 2, child: _buildActionButton("GIOCA MANO", playButtonColor, canPlay ? game.startHand : null)),
+                
+                Expanded(flex: 2, child: _buildActionButton(
+                  "GIOCA MANO", 
+                  canPlay ? const Color(0xFF1E88E5) : const Color(0xFF1E88E5).withOpacity(0.3), 
+                  canPlay ? game.startHand : null
+                )),
               ],
             ),
           ],
         );
     }
 
-    // FASE 2/3
+    // FASE 2/3: GIOCO
     Color btnColor = game.currentPhase == GamePhase.pickingWinners ? const Color(0xFF43A047) : const Color(0xFFE53935);
     String btnText = game.currentPhase == GamePhase.pickingWinners ? "CONFERMA" : "FINE MANO";
     VoidCallback? onConfirm;
@@ -296,7 +311,6 @@ class GameTableScreen extends StatelessWidget {
 
     return Row(
       children: [
-        // Tasto Società
         Material(
           color: game.isLinkingMode ? const Color(0xFFFFC107) : Colors.grey[800],
           borderRadius: BorderRadius.circular(12),
@@ -330,7 +344,7 @@ class GameTableScreen extends StatelessWidget {
     return ElevatedButton(
       style: ElevatedButton.styleFrom(
         backgroundColor: color,
-        disabledBackgroundColor: color.withOpacity(0.3),
+        disabledBackgroundColor: color, // Mantiene il colore (scurito) anche se disabilitato
         disabledForegroundColor: Colors.white12,
         padding: const EdgeInsets.symmetric(vertical: 16),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -340,7 +354,8 @@ class GameTableScreen extends StatelessWidget {
     );
   }
 
-  // --- DIALOGS (Invariati o leggermente puliti) ---
+  // --- DIALOGS ---
+
   void _showAddPlayerDialog(BuildContext context) {
       final controller = TextEditingController();
       showDialog(context: context, builder: (ctx) => AlertDialog(
@@ -353,13 +368,49 @@ class GameTableScreen extends StatelessWidget {
               style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
               onPressed: () {
                 if (controller.text.isNotEmpty) {
-                  Provider.of<GameProvider>(context, listen: false).addPlayer(controller.text);
+                  bool success = Provider.of<GameProvider>(context, listen: false).addPlayer(controller.text);
                   Navigator.pop(ctx);
+                  if(!success) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Impossibile aggiungere (Tavolo pieno o Piatto sporco)")));
                 }
               }, 
               child: const Text("Aggiungi", style: TextStyle(color: Colors.white)))
           ],
         ));
+  }
+
+  void _showPlayerStatsDialog(BuildContext context, Player p) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        title: Row(children: [
+             CircleAvatar(backgroundColor: Colors.blueGrey, child: Text(p.name[0], style: const TextStyle(color: Colors.white))),
+             const SizedBox(width: 10),
+             Text(p.name, style: const TextStyle(color: Colors.black87)),
+        ]),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Bilancio: ${p.score.toStringAsFixed(2)} €", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: p.score < 0 ? Colors.red : Colors.green)),
+            const SizedBox(height: 20),
+            const Text("Vuoi che questo giocatore lasci il tavolo?\nIl suo storico verrà mantenuto per il calcolo finale, ma non parteciperà più alle mani successive.", style: TextStyle(fontSize: 13, color: Colors.grey)),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Annulla")),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            icon: const Icon(Icons.exit_to_app, color: Colors.white),
+            label: const Text("ABBANDONA TAVOLO", style: TextStyle(color: Colors.white)),
+            onPressed: () {
+               Provider.of<GameProvider>(context, listen: false).playerLeavesTable(p.id);
+               Navigator.pop(ctx);
+            },
+          ),
+        ],
+      ),
+    );
   }
 
   void _showSettingsDialog(BuildContext context) {

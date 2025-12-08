@@ -28,13 +28,12 @@ class DatabaseHelper {
   }
 
   Future _createDB(Database db, int version) async {
-    // Tabella Giocatori
-    // score è REAL per supportare decimali (es. 12.50)
     await db.execute('''
     CREATE TABLE players (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
-      score REAL NOT NULL, 
+      score REAL NOT NULL,
+      is_active INTEGER NOT NULL DEFAULT 1,
       sort_order INTEGER NOT NULL 
     )
     ''');
