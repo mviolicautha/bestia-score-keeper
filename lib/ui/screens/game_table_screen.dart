@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:showcaseview/showcaseview.dart'; 
 import 'package:bestia_scoreboard_application/logic/game_provider.dart';
 import 'package:bestia_scoreboard_application/data/model/player.dart';
+import 'package:bestia_scoreboard_application/data/model/game_log.dart'; // Importa il modello log
 
 class GameTableScreen extends StatefulWidget {
   const GameTableScreen({super.key});
@@ -20,6 +21,7 @@ class _GameTableScreenState extends State<GameTableScreen> {
   final GlobalKey _addPlayerKey = GlobalKey();
   final GlobalKey _actionsKey = GlobalKey();
   final GlobalKey _endGameKey = GlobalKey();
+  final GlobalKey _historyKey = GlobalKey(); // Nuova chiave
 
   @override
   Widget build(BuildContext context) {
@@ -64,13 +66,26 @@ class _GameTableScreenState extends State<GameTableScreen> {
             ShowCaseWidget.of(context).startShowCase([
               _potKey,
               _addPlayerKey,
-              _actionsKey, // Il cuore della spiegazione è qui
+              _actionsKey,
               _undoKey,
+              _historyKey, // Aggiunto al tutorial
               _endGameKey,
             ]);
           },
         ),
         actions: [
+          // STORICO (NUOVO)
+          Showcase(
+            key: _historyKey,
+            title: 'Cronologia',
+            description: 'Vedi tutte le azioni della partita:\nvincite, bestie e passaggi.',
+            child: IconButton(
+              icon: const Icon(Icons.history, color: Colors.white),
+              tooltip: "Storico Partita",
+              onPressed: () => _showHistoryBottomSheet(context),
+            ),
+          ),
+
           // UNDO
           if (game.canUndo)
             Showcase(
@@ -90,7 +105,6 @@ class _GameTableScreenState extends State<GameTableScreen> {
             ),
 
           // SETTINGS
-          // (Non mettiamo il tutorial qui per non affollare, è intuitivo)
           IconButton(
             icon: Icon(Icons.settings, color: game.canChangeBet ? Colors.white : Colors.white24),
             tooltip: "Imposta Messa",
@@ -240,7 +254,97 @@ class _GameTableScreenState extends State<GameTableScreen> {
     );
   }
 
-  // --- WIDGETS ---
+  // --- UI COMPONENTS ---
+  void _showHistoryBottomSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A233A),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        final logs = Provider.of<GameProvider>(context).gameLogs;
+        
+        return Container(
+          padding: const EdgeInsets.only(top: 16),
+          child: Column(
+            children: [
+              // Maniglia per trascinare
+              Container(
+                width: 40, height: 4, 
+                decoration: BoxDecoration(color: Colors.grey[600], borderRadius: BorderRadius.circular(2))
+              ),
+              const SizedBox(height: 16),
+              const Text("Cronologia Eventi", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              
+              Expanded(
+                child: logs.isEmpty 
+                  ? const Center(child: Text("Nessun evento registrato", style: TextStyle(color: Colors.white38)))
+                  : ListView.builder(
+                      itemCount: logs.length,
+                      itemBuilder: (ctx, i) {
+                        final log = logs[i];
+                        IconData icon;
+                        Color color;
+
+                        // LOGICA DI SCELTA ICONA
+                        switch (log.type) {
+                          case LogType.gain:
+                            icon = Icons.emoji_events; // Coppa o Freccia su
+                            color = Colors.greenAccent;
+                            break;
+                          case LogType.loss:
+                            icon = Icons.warning_amber_rounded;
+                            color = Colors.redAccent;
+                            break;
+                          case LogType.pass:
+                            icon = Icons.refresh;
+                            color = Colors.blueGrey;
+                            break;
+                          case LogType.info:
+                          default:
+                            // Analizziamo il testo per icone specifiche
+                            if (log.message.contains("aggiunto") || log.message.contains("Nuova partita")) {
+                              icon = Icons.person_add;
+                              color = Colors.cyanAccent;
+                            } else if (log.message.contains("lasciato")) {
+                              icon = Icons.person_remove;
+                              color = Colors.orangeAccent;
+                            } else if (log.message.contains("Messa modificata")) {
+                              icon = Icons.settings;
+                              color = Colors.grey;
+                            } else {
+                              icon = Icons.info_outline;
+                              color = Colors.white54;
+                            }
+                        }
+
+                        return ListTile(
+                          leading: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: color.withOpacity(0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(icon, color: color, size: 20),
+                          ),
+                          title: Text(log.message, style: const TextStyle(color: Colors.white, fontSize: 13)),
+                          subtitle: Text(
+                            "${log.timestamp.hour.toString().padLeft(2,'0')}:${log.timestamp.minute.toString().padLeft(2,'0')}",
+                            style: const TextStyle(color: Colors.white30, fontSize: 11)
+                          ),
+                          dense: true,
+                        );
+                      },
+                    ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   Widget _buildEnhancedPlayerAvatar(Player player, int groupIndex, GamePhase phase, double angle, {bool isDisabled = false}) {
     Color borderColor = Colors.white24;
@@ -259,7 +363,6 @@ class _GameTableScreenState extends State<GameTableScreen> {
       groupColor = groupColors[groupIndex % groupColors.length];
       borderColor = groupColor;
       scale = 1.15;
-      
       String letter = String.fromCharCode(65 + (groupIndex % 26)); 
       groupLabel = "GRUPPO $letter";
     }
@@ -292,7 +395,6 @@ class _GameTableScreenState extends State<GameTableScreen> {
                     child: const Icon(Icons.person, size: 34),
                   ),
                 ),
-
                 if (groupLabel != null)
                   Positioned(
                     top: -12, 
@@ -304,53 +406,21 @@ class _GameTableScreenState extends State<GameTableScreen> {
                         border: Border.all(color: Colors.white, width: 1.5), 
                         boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 2)],
                       ),
-                      child: Text(
-                        groupLabel,
-                        style: const TextStyle(
-                          color: Colors.black87, 
-                          fontSize: 9, 
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0.5
-                        ),
-                      ),
+                      child: Text(groupLabel, style: const TextStyle(color: Colors.black87, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
                     ),
                   ),
               ],
             ),
             const SizedBox(height: 6), 
-            
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               constraints: const BoxConstraints(maxWidth: 95),
-              decoration: BoxDecoration(
-                color: Colors.black87,
-                borderRadius: BorderRadius.circular(10), 
-                border: Border.all(color: Colors.white12),
-              ),
+              decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.white12)),
               child: Column(
                 children: [
-                  Text(
-                    player.name, 
-                    textAlign: TextAlign.center, 
-                    maxLines: 1, 
-                    overflow: TextOverflow.ellipsis, 
-                    style: const TextStyle(
-                      color: Colors.white, 
-                      fontSize: 13, 
-                      fontWeight: FontWeight.bold
-                    )
-                  ),
+                  Text(player.name, textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 2),
-                  Text(
-                    "${player.score.toStringAsFixed(2)}€", 
-                    textAlign: TextAlign.center, 
-                    style: TextStyle(
-                      color: player.score < 0 ? Colors.redAccent : Colors.greenAccent, 
-                      fontSize: 11, 
-                      fontWeight: FontWeight.w900, 
-                      letterSpacing: 0.5
-                    )
-                  ),
+                  Text("${player.score.toStringAsFixed(2)}€", textAlign: TextAlign.center, style: TextStyle(color: player.score < 0 ? Colors.redAccent : Colors.greenAccent, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
                 ],
               ),
             ),
@@ -363,7 +433,6 @@ class _GameTableScreenState extends State<GameTableScreen> {
   Widget _buildDealerToken(double tableRadius, int playerCount, int dealerIndex) {
     final double tokenRadius = tableRadius - 105; 
     final double angle = (2 * pi * dealerIndex) / playerCount - (pi / 2);
-    
     return Transform.translate(
       offset: Offset(tokenRadius * cos(angle), tokenRadius * sin(angle)),
       child: Container(
@@ -380,7 +449,6 @@ class _GameTableScreenState extends State<GameTableScreen> {
   }
 
   Widget _buildBottomControls(BuildContext context, GameProvider game) {
-    // SHOWCASE PRINCIPALE: Flusso di Gioco
     return Showcase(
       key: _actionsKey,
       title: 'Flusso di Gioco (3 Fasi)',
@@ -397,10 +465,8 @@ class _GameTableScreenState extends State<GameTableScreen> {
         bool canAddMore = game.players.length < 15;
         bool isPotClean = game.canChangeBet;
         bool enableAddButton = canAddMore && isPotClean;
-
         bool hasMinPlayers = game.activePlayers.length >= 5;
         bool hasPot = game.currentPot > 0.001; 
-        
         bool canPass = hasMinPlayers; 
         bool canStartHand = hasMinPlayers && hasPot;
 
@@ -412,7 +478,6 @@ class _GameTableScreenState extends State<GameTableScreen> {
             
             Row(
               children: [
-                // SHOWCASE AGGIUNGI
                 Showcase(
                   key: _addPlayerKey,
                   title: 'Imposta Tavolo',
@@ -432,27 +497,15 @@ class _GameTableScreenState extends State<GameTableScreen> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                
-                Expanded(child: _buildActionButton(
-                  "PASSA (+${game.baseBet.toStringAsFixed(2)})", 
-                  canPass ? Colors.blueGrey[700]! : Colors.grey[800]!, 
-                  canPass ? game.passHandWithoutPlaying : null
-                )),
-                
+                Expanded(child: _buildActionButton("PASSA (+${game.baseBet.toStringAsFixed(2)})", canPass ? Colors.blueGrey[700]! : Colors.grey[800]!, canPass ? game.passHandWithoutPlaying : null)),
                 const SizedBox(width: 12),
-                
-                Expanded(flex: 2, child: _buildActionButton(
-                  "GIOCA MANO", 
-                  canStartHand ? const Color(0xFF1E88E5) : const Color(0xFF1E88E5).withOpacity(0.3), 
-                  canStartHand ? game.startHand : null 
-                )),
+                Expanded(flex: 2, child: _buildActionButton("GIOCA MANO", canStartHand ? const Color(0xFF1E88E5) : const Color(0xFF1E88E5).withOpacity(0.3), canStartHand ? game.startHand : null)),
               ],
             ),
           ],
         );
     }
 
-    // FASE 2/3
     Color btnColor = game.currentPhase == GamePhase.pickingWinners ? const Color(0xFF43A047) : const Color(0xFFE53935);
     String btnText = game.currentPhase == GamePhase.pickingWinners ? "CONFERMA" : "FINE MANO";
     VoidCallback? onConfirm;
@@ -479,12 +532,7 @@ class _GameTableScreenState extends State<GameTableScreen> {
         const SizedBox(width: 12),
         Expanded(
           child: ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: btnColor,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              elevation: 4,
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: btnColor, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), elevation: 4),
             onPressed: onConfirm,
             child: Text(btnText, style: const TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 1)),
           ),
@@ -494,20 +542,8 @@ class _GameTableScreenState extends State<GameTableScreen> {
   }
 
   Widget _buildActionButton(String text, Color color, VoidCallback? onTap) {
-    return ElevatedButton(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: color,
-        disabledBackgroundColor: color, 
-        disabledForegroundColor: Colors.white12,
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-      onPressed: onTap,
-      child: Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-    );
+    return ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: color, disabledBackgroundColor: color, disabledForegroundColor: Colors.white12, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))), onPressed: onTap, child: Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)));
   }
-
-  // --- DIALOGS (Invariati) ---
 
   void _showAddPlayerDialog(BuildContext context) {
       final controller = TextEditingController();
@@ -517,83 +553,22 @@ class _GameTableScreenState extends State<GameTableScreen> {
           content: TextField(controller: controller, style: const TextStyle(color: Colors.white), decoration: const InputDecoration(hintText: "Nome", hintStyle: TextStyle(color: Colors.white38), enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white38)))),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Annulla", style: TextStyle(color: Colors.white54))),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
-              onPressed: () {
-                if (controller.text.isNotEmpty) {
-                  bool success = Provider.of<GameProvider>(context, listen: false).addPlayer(controller.text);
-                  Navigator.pop(ctx);
-                  if(!success) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Impossibile aggiungere (Tavolo pieno o Piatto sporco)")));
-                }
-              }, 
-              child: const Text("Aggiungi", style: TextStyle(color: Colors.white)))
+            ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.blue), onPressed: () { if (controller.text.isNotEmpty) { bool success = Provider.of<GameProvider>(context, listen: false).addPlayer(controller.text); Navigator.pop(ctx); if(!success) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Impossibile aggiungere (Tavolo pieno o Piatto sporco)"))); } }, child: const Text("Aggiungi", style: TextStyle(color: Colors.white)))
           ],
         ));
   }
 
   void _showPlayerStatsDialog(BuildContext context, Player p) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
-        title: Row(children: [
-             CircleAvatar(backgroundColor: Colors.blueGrey, child: Text(p.name[0], style: const TextStyle(color: Colors.white))),
-             const SizedBox(width: 10),
-             Text(p.name, style: const TextStyle(color: Colors.black87)),
-        ]),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text("Bilancio: ${p.score.toStringAsFixed(2)} €", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: p.score < 0 ? Colors.red : Colors.green)),
-            const SizedBox(height: 20),
-            const Text("Vuoi che questo giocatore lasci il tavolo?\nIl suo storico verrà mantenuto per il calcolo finale, ma non parteciperà più alle mani successive.", style: TextStyle(fontSize: 13, color: Colors.grey)),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Annulla")),
-          ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            icon: const Icon(Icons.exit_to_app, color: Colors.white),
-            label: const Text("ABBANDONA TAVOLO", style: TextStyle(color: Colors.white)),
-            onPressed: () {
-               Provider.of<GameProvider>(context, listen: false).playerLeavesTable(p.id);
-               Navigator.pop(ctx);
-            },
-          ),
-        ],
-      ),
-    );
+    showDialog(context: context, builder: (ctx) => AlertDialog(backgroundColor: Colors.white, title: Row(children: [CircleAvatar(backgroundColor: Colors.blueGrey, child: Text(p.name[0], style: const TextStyle(color: Colors.white))), const SizedBox(width: 10), Text(p.name, style: const TextStyle(color: Colors.black87))]), content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [Text("Bilancio: ${p.score.toStringAsFixed(2)} €", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: p.score < 0 ? Colors.red : Colors.green)), const SizedBox(height: 20), const Text("Vuoi che questo giocatore lasci il tavolo?\nIl suo storico verrà mantenuto per il calcolo finale, ma non parteciperà più alle mani successive.", style: TextStyle(fontSize: 13, color: Colors.grey))]), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Annulla")), ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), icon: const Icon(Icons.exit_to_app, color: Colors.white), label: const Text("ABBANDONA TAVOLO", style: TextStyle(color: Colors.white)), onPressed: () { Provider.of<GameProvider>(context, listen: false).playerLeavesTable(p.id); Navigator.pop(ctx); })]));
   }
 
   void _showSettingsDialog(BuildContext context) {
     final game = Provider.of<GameProvider>(context, listen: false);
     double tempBet = game.baseBet; 
-    showDialog(context: context, builder: (ctx) => StatefulBuilder(
-        builder: (context, setState) {
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (context, setState) {
           String displayBet = tempBet.toStringAsFixed(2);
           bool canDecrease = tempBet > 0.31; 
-          return AlertDialog(
-            backgroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: const Text("Imposta Messa", style: TextStyle(fontWeight: FontWeight.bold)),
-            content: Column(mainAxisSize: MainAxisSize.min, children: [
-                const SizedBox(height: 10),
-                const Text("Modifica l'importo che il mazziere deve mettere ad ogni giro.", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey, fontSize: 13)),
-                const SizedBox(height: 24),
-                Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8), decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey[300]!)), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                      _buildStepperButton(icon: Icons.remove, isEnabled: canDecrease, onPressed: () { setState(() { tempBet -= 0.30; tempBet = double.parse(tempBet.toStringAsFixed(2)); }); }),
-                      Text("$displayBet €", style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Color(0xFF2E3B55))),
-                      _buildStepperButton(icon: Icons.add, isEnabled: true, onPressed: () { setState(() { tempBet += 0.30; tempBet = double.parse(tempBet.toStringAsFixed(2)); }); }),
-                    ])),
-              ]),
-            actionsAlignment: MainAxisAlignment.spaceBetween,
-            actionsPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Annulla", style: TextStyle(color: Colors.grey, fontSize: 16))),
-              ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2E3B55), padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12)), onPressed: () { game.setBaseBet(tempBet); Navigator.pop(ctx); }, child: const Text("SALVA", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16))),
-            ],
-          );
+          return AlertDialog(backgroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), title: const Text("Imposta Messa", style: TextStyle(fontWeight: FontWeight.bold)), content: Column(mainAxisSize: MainAxisSize.min, children: [const SizedBox(height: 10), const Text("Modifica l'importo che il mazziere deve mettere ad ogni giro.", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey, fontSize: 13)), const SizedBox(height: 24), Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8), decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey[300]!)), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [_buildStepperButton(icon: Icons.remove, isEnabled: canDecrease, onPressed: () { setState(() { tempBet -= 0.30; tempBet = double.parse(tempBet.toStringAsFixed(2)); }); }), Text("$displayBet €", style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Color(0xFF2E3B55))), _buildStepperButton(icon: Icons.add, isEnabled: true, onPressed: () { setState(() { tempBet += 0.30; tempBet = double.parse(tempBet.toStringAsFixed(2)); }); })]))]), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Annulla", style: TextStyle(color: Colors.grey, fontSize: 16))), ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2E3B55), padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12)), onPressed: () { game.setBaseBet(tempBet); Navigator.pop(ctx); }, child: const Text("SALVA", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)))]);
         }));
   }
 
@@ -621,12 +596,7 @@ class _GameTableScreenState extends State<GameTableScreen> {
                 final isWinner = p.score > 0.001;
                 final isLoser = p.score < -0.001;
                 Color rowColor = index % 2 == 0 ? Colors.grey[50]! : Colors.white;
-                return Container(color: rowColor, padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4), child: Row(children: [
-                      SizedBox(width: 30, child: index == 0 ? const Icon(Icons.emoji_events, color: Colors.amber, size: 24) : Text("#${index + 1}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey), textAlign: TextAlign.center)),
-                      const SizedBox(width: 10),
-                      Expanded(child: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16), overflow: TextOverflow.ellipsis)),
-                      Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: isWinner ? Colors.green[50] : (isLoser ? Colors.red[50] : Colors.grey[100]), borderRadius: BorderRadius.circular(8), border: Border.all(color: isWinner ? Colors.green : (isLoser ? Colors.red : Colors.grey), width: 1)), child: Text("${p.score > 0 ? '+' : ''}${p.score.toStringAsFixed(2)} €", style: TextStyle(color: isWinner ? Colors.green[800] : (isLoser ? Colors.red[800] : Colors.black54), fontWeight: FontWeight.bold, fontSize: 16))),
-                    ]));
+                return Container(color: rowColor, padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4), child: Row(children: [SizedBox(width: 30, child: index == 0 ? const Icon(Icons.emoji_events, color: Colors.amber, size: 24) : Text("#${index + 1}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey), textAlign: TextAlign.center)), const SizedBox(width: 10), Expanded(child: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16), overflow: TextOverflow.ellipsis)), Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: isWinner ? Colors.green[50] : (isLoser ? Colors.red[50] : Colors.grey[100]), borderRadius: BorderRadius.circular(8), border: Border.all(color: isWinner ? Colors.green : (isLoser ? Colors.red : Colors.grey), width: 1)), child: Text("${p.score > 0 ? '+' : ''}${p.score.toStringAsFixed(2)} €", style: TextStyle(color: isWinner ? Colors.green[800] : (isLoser ? Colors.red[800] : Colors.black54), fontWeight: FontWeight.bold, fontSize: 16)))]));
               }),
               const Spacer(), const SizedBox(height: 20),
               SizedBox(width: double.infinity, child: ElevatedButton.icon(icon: const Icon(Icons.refresh, color: Colors.white), label: const Text("NUOVA PARTITA", style: TextStyle(color: Colors.white)), style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2E3B55), padding: const EdgeInsets.symmetric(vertical: 14)), onPressed: () => Navigator.pop(ctx))),

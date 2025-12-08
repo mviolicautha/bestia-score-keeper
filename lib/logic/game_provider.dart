@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:bestia_scoreboard_application/data/database_helper.dart';
 import 'package:bestia_scoreboard_application/data/model/player.dart';
+import 'package:bestia_scoreboard_application/data/model/game_log.dart'; // Import Log Model
 
-// Classe per memorizzare uno stato passato (Snapshot)
 class GameSnapshot {
   final List<Player> players;
   final int dealerIndex;
@@ -11,7 +11,8 @@ class GameSnapshot {
   final double baseBet;
   final List<Set<String>> selectionGroups;
   final bool isLinkingMode;
-  final Set<String> currentHandWinners; 
+  final Set<String> currentHandWinners;
+  final List<GameLog> logs; // Salviamo anche lo storico
 
   GameSnapshot({
     required this.players,
@@ -22,6 +23,7 @@ class GameSnapshot {
     required this.selectionGroups,
     required this.isLinkingMode,
     required this.currentHandWinners,
+    required this.logs,
   });
 }
 
@@ -32,28 +34,23 @@ class GameProvider extends ChangeNotifier {
   GamePhase currentPhase = GamePhase.dealerSelection;
   double baseBet = 0.30; 
 
-  // Gestione Gruppi/Società
   List<Set<String>> selectionGroups = [];
   bool isLinkingMode = false;
-
-  // Memoria temporanea dei vincitori per validazione logica
   Set<String> currentHandWinners = {};
 
-  // STORICO UNDO (Max 5 stati)
-  final List<GameSnapshot> _history = [];
+  // LISTA LOG (Storico)
+  List<GameLog> gameLogs = [];
 
+  final List<GameSnapshot> _history = [];
   bool isLoading = true;
 
   GameProvider() {
     _loadData();
   }
   
-  // Getter utili
   List<Player> get activePlayers => players.where((p) => p.isActive).toList();
   bool get canUndo => _history.isNotEmpty;
 
-  // Posso cambiare impostazioni/giocatori solo se il piatto è "pulito"
-  // (cioè contiene 0 o ESATTAMENTE la baseBet corrente)
   bool get canChangeBet {
     if (currentPot < 0.01) return true; 
     if ((currentPot - baseBet).abs() < 0.01) return true;
@@ -82,6 +79,12 @@ class GameProvider extends ChangeNotifier {
         ? GamePhase.values[phaseIndex] 
         : GamePhase.dealerSelection;
 
+    // Carica Logs
+    if (data.containsKey('logs')) {
+      final logsList = data['logs'] as List<Map<String, dynamic>>;
+      gameLogs = logsList.map((m) => GameLog.fromMap(m)).toList();
+    }
+    
     isLoading = false;
     notifyListeners();
   }
@@ -90,16 +93,30 @@ class GameProvider extends ChangeNotifier {
     DatabaseHelper.instance.saveGame(
       players, dealerIndex, currentPot, currentPhase.index, baseBet
     );
+    // Nota: i log vengono salvati singolarmente via addLog, o in blocco via overwriteLogs
     notifyListeners();
+  }
+
+  // --- LOGGING SYSTEM ---
+  
+  void _logAction(String message, LogType type) {
+    final newLog = GameLog(
+      message: message,
+      timestamp: DateTime.now(),
+      type: type
+    );
+    gameLogs.insert(0, newLog); // Aggiungi in cima (più recente)
+    DatabaseHelper.instance.addLog(newLog);
   }
 
   // --- LOGICA UNDO ---
 
   void _saveSnapshot() {
-    // Deep Copy
     final playersCopy = players.map((p) => p.copy()).toList();
     final groupsCopy = selectionGroups.map((set) => Set<String>.from(set)).toList();
     final winnersCopy = Set<String>.from(currentHandWinners);
+    // Copia anche i log attuali per poter tornare indietro
+    final logsCopy = List<GameLog>.from(gameLogs);
 
     final snapshot = GameSnapshot(
       players: playersCopy,
@@ -110,11 +127,11 @@ class GameProvider extends ChangeNotifier {
       selectionGroups: groupsCopy,
       isLinkingMode: isLinkingMode,
       currentHandWinners: winnersCopy,
+      logs: logsCopy, 
     );
 
     _history.add(snapshot);
 
-    // Limite storico a 5
     if (_history.length > 5) {
       _history.removeAt(0); 
     }
@@ -125,7 +142,6 @@ class GameProvider extends ChangeNotifier {
 
     final snapshot = _history.removeLast();
 
-    // Ripristino Deep Copy
     players = snapshot.players.map((p) => p.copy()).toList();
     dealerIndex = snapshot.dealerIndex;
     currentPot = snapshot.currentPot;
@@ -134,6 +150,10 @@ class GameProvider extends ChangeNotifier {
     selectionGroups = snapshot.selectionGroups.map((set) => Set<String>.from(set)).toList();
     isLinkingMode = snapshot.isLinkingMode;
     currentHandWinners = Set<String>.from(snapshot.currentHandWinners);
+    
+    // Ripristina Logs e Salva su DB
+    gameLogs = List<GameLog>.from(snapshot.logs);
+    DatabaseHelper.instance.overwriteLogs(gameLogs);
 
     _autoSave();
     notifyListeners();
@@ -146,7 +166,6 @@ class GameProvider extends ChangeNotifier {
     if (remainder < 0.001 || (0.30 - remainder) < 0.001) {
       _saveSnapshot();
       
-      // Se piatto pulito, aggiorniamo anche il piatto e il dealer corrente
       if ((currentPot - baseBet).abs() < 0.01 && players.isNotEmpty) {
          double difference = newBet - baseBet;
          if (dealerIndex < players.length) {
@@ -154,6 +173,8 @@ class GameProvider extends ChangeNotifier {
          }
          currentPot = newBet;
       }
+      
+      _logAction("Messa modificata: ${baseBet.toStringAsFixed(2)}€ -> ${newBet.toStringAsFixed(2)}€", LogType.info);
 
       baseBet = newBet;
       _autoSave();
@@ -172,11 +193,13 @@ class GameProvider extends ChangeNotifier {
       final newPlayer = Player(name: name);
       players.add(newPlayer);
 
-      // CORREZIONE: Il primo giocatore paga subito l'invito
       if (players.length == 1) {
         dealerIndex = 0; 
         newPlayer.score -= baseBet; 
         currentPot = baseBet; 
+        _logAction("Nuova partita. Dealer: $name. Piatto: ${baseBet.toStringAsFixed(2)}€", LogType.info);
+      } else {
+        _logAction("Giocatore aggiunto: $name", LogType.info);
       }
 
       _autoSave();
@@ -193,10 +216,12 @@ class GameProvider extends ChangeNotifier {
 
     final index = players.indexWhere((p) => p.id == playerId);
     if (index != -1) {
+      String name = players[index].name;
       players[index].isActive = false;
       if (dealerIndex == index) {
         passDealerTokenToNextActive();
       }
+      _logAction("$name ha lasciato il tavolo", LogType.info);
       _autoSave();
       notifyListeners();
     }
@@ -218,14 +243,12 @@ class GameProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Ritorna false se l'azione è bloccata (es. seleziono vincitore come perdente)
   bool togglePlayerSelection(String playerId) {
     if (currentPhase == GamePhase.dealerSelection) return false;
 
-    // VALIDAZIONE LOGICA
     if (currentPhase == GamePhase.pickingLosers) {
       if (currentHandWinners.contains(playerId)) {
-        return false; // BLOCCATO: Ha vinto questa mano
+        return false; 
       }
     }
 
@@ -277,11 +300,18 @@ class GameProvider extends ChangeNotifier {
     if (activePlayers.isEmpty) return;
     
     _saveSnapshot();
+    
+    String dealerName = players[dealerIndex].name;
 
     passDealerTokenToNextActive();
+    
+    // Il nuovo dealer paga
     players[dealerIndex].score -= baseBet;
     currentPot += baseBet;
     
+    String nextDealerName = players[dealerIndex].name;
+    _logAction("Mano passata ($dealerName). $nextDealerName versa ${baseBet.toStringAsFixed(2)}€. Piatto: ${currentPot.toStringAsFixed(2)}€", LogType.pass);
+
     _autoSave();
   }
 
@@ -303,18 +333,24 @@ class GameProvider extends ChangeNotifier {
     double amountPerEntity = currentPot / numberOfEntities;
     
     currentHandWinners.clear();
+    List<String> logParts = [];
 
     for (var group in selectionGroups) {
-      currentHandWinners.addAll(group); // Memorizza chi ha vinto
+      currentHandWinners.addAll(group);
 
       int membersCount = group.length;
       double amountPerPlayer = amountPerEntity / membersCount;
-
+      
+      List<String> names = [];
       for (String id in group) {
         final player = players.firstWhere((p) => p.id == id);
         player.score += amountPerPlayer;
+        names.add(player.name);
       }
+      logParts.add("${names.join('&')} (+${amountPerEntity.toStringAsFixed(2)}€)");
     }
+    
+    _logAction("Vincita assegnata: ${logParts.join(', ')}", LogType.gain);
 
     currentPhase = GamePhase.pickingLosers;
     selectionGroups.clear();
@@ -327,24 +363,35 @@ class GameProvider extends ChangeNotifier {
 
     double totalDebtToPay = currentPot; 
     double collected = 0.0;
+    List<String> logParts = [];
 
-    for (var group in selectionGroups) {
-      int membersCount = group.length;
-      double penaltyPerPlayer = totalDebtToPay / membersCount;
-
-      for (String id in group) {
-        final player = players.firstWhere((p) => p.id == id);
-        player.score -= penaltyPerPlayer;
-        collected += penaltyPerPlayer;
+    if (selectionGroups.isNotEmpty) {
+      for (var group in selectionGroups) {
+        int membersCount = group.length;
+        double penaltyPerPlayer = totalDebtToPay / membersCount;
+        
+        List<String> names = [];
+        for (String id in group) {
+          final player = players.firstWhere((p) => p.id == id);
+          player.score -= penaltyPerPlayer;
+          collected += penaltyPerPlayer;
+          names.add(player.name);
+        }
+        logParts.add("${names.join('&')} (-${penaltyPerPlayer.toStringAsFixed(2)}€)");
       }
+      _logAction("Bestie assegnate: ${logParts.join(', ')}", LogType.loss);
+    } else {
+      _logAction("Nessuna bestia. Piatto pulito.", LogType.info);
     }
     
-    currentHandWinners.clear(); // Reset memoria vincitori
+    currentHandWinners.clear();
 
     if (activePlayers.isNotEmpty) {
       passDealerTokenToNextActive();
       players[dealerIndex].score -= baseBet;
       currentPot = collected + baseBet; 
+      
+      _logAction("Nuovo giro. Dealer: ${players[dealerIndex].name}. Piatto: ${currentPot.toStringAsFixed(2)}€", LogType.pass);
     } else {
       currentPot = 0.0;
     }
@@ -371,6 +418,11 @@ class GameProvider extends ChangeNotifier {
     selectionGroups.clear();
     currentHandWinners.clear();
     _history.clear(); 
+    
+    // Pulisci DB
+    DatabaseHelper.instance.clearLogs();
+    gameLogs.clear();
+    
     _autoSave(); 
 
     return rankedPlayers;

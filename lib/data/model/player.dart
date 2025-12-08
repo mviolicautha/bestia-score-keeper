@@ -1,3 +1,5 @@
+import 'package:uuid/uuid.dart';
+
 enum GamePhase {
   dealerSelection, 
   pickingWinners,  
@@ -8,16 +10,16 @@ class Player {
   final String id;
   String name;
   double score;
-  bool isActive; 
+  bool isActive;
 
   Player({
-    required this.name, 
-    this.score = 0.0, 
-    this.isActive = true,
     String? id,
-  }) : id = id ?? DateTime.now().microsecondsSinceEpoch.toString();
+    required this.name,
+    this.score = 0.0,
+    this.isActive = true,
+  }) : id = id ?? const Uuid().v4();
 
-  // Metodo per clonare il giocatore (Deep Copy essenziale per l'Undo)
+  // COPIA PROFONDA (Per l'Undo)
   Player copy() {
     return Player(
       id: id,
@@ -27,13 +29,22 @@ class Player {
     );
   }
 
-  Map<String, dynamic> toMap(int sortOrder) {
+  // CORREZIONE QUI: toMap non deve avere argomenti
+  Map<String, dynamic> toMap() {
     return {
       'id': id,
       'name': name,
       'score': score,
-      'is_active': isActive ? 1 : 0, 
-      'sort_order': sortOrder,
+      'is_active': isActive ? 1 : 0,
     };
+  }
+
+  factory Player.fromMap(Map<String, dynamic> map) {
+    return Player(
+      id: map['id'],
+      name: map['name'],
+      score: (map['score'] as num).toDouble(),
+      isActive: (map['is_active'] as int) == 1,
+    );
   }
 }
