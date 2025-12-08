@@ -1,21 +1,20 @@
 enum GamePhase {
-  dealerSelection, // Fase 1: Si decide se giocare o passare
-  pickingWinners,  // Fase 2: Chi ha vinto?
-  pickingLosers    // Fase 3: Chi ha perso (bussato)?
+  dealerSelection, 
+  pickingWinners,  
+  pickingLosers    
 }
 
 class Player {
   final String id;
   String name;
-  int score;
+  double score;
 
   Player({
     required this.name, 
-    this.score = 0, 
+    this.score = 0.0, 
     String? id,
   }) : id = id ?? DateTime.now().microsecondsSinceEpoch.toString();
 
-  // Metodi per convertire da/verso Database
   Map<String, dynamic> toMap(int sortOrder) {
     return {
       'id': id,

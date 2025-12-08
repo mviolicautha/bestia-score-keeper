@@ -5,9 +5,12 @@ import 'package:bestia_scoreboard_application/data/model/player.dart';
 class GameProvider extends ChangeNotifier {
   List<Player> players = [];
   int dealerIndex = 0;
-  int currentPot = 0; 
+  double currentPot = 0.0;
   GamePhase currentPhase = GamePhase.dealerSelection;
   
+  // Messa iniziale (default 0.30 per facilitare diviso 3)
+  double baseBet = 0.30; 
+
   Set<String> selectedPlayerIds = {};
   bool isLoading = true;
 
@@ -22,31 +25,53 @@ class GameProvider extends ChangeNotifier {
     players = playerList.map((m) => Player(
       id: m['id'], 
       name: m['name'], 
-      score: m['score']
+      score: (m['score'] as num).toDouble(), // Già corretto
     )).toList();
 
     dealerIndex = data['dealerIndex'] as int;
-    currentPot = data['currentPot'] as int;
     
-    int phaseIndex = data['gamePhase'] as int;
-    if (phaseIndex >= 0 && phaseIndex < GamePhase.values.length) {
-      currentPhase = GamePhase.values[phaseIndex];
-    } else {
-      currentPhase = GamePhase.dealerSelection;
+    // --- CORREZIONE QUI SOTTO ---
+    // Invece di 'as double', usa '(nome_valore as num).toDouble()'
+    currentPot = (data['currentPot'] as num).toDouble(); 
+    
+    // Stessa cosa per baseBet se presente
+    if (data.containsKey('baseBet')) {
+        baseBet = (data['baseBet'] as num).toDouble();
     }
+    // ----------------------------
+
+    int phaseIndex = data['gamePhase'] as int;
+    currentPhase = (phaseIndex >= 0 && phaseIndex < GamePhase.values.length) 
+        ? GamePhase.values[phaseIndex] 
+        : GamePhase.dealerSelection;
 
     isLoading = false;
     notifyListeners();
   }
-
   void _autoSave() {
+    // Salviamo anche la baseBet
     DatabaseHelper.instance.saveGame(
       players, 
       dealerIndex, 
       currentPot, 
-      currentPhase.index
+      currentPhase.index,
+      baseBet // Assicurati di aggiornare DatabaseHelper per accettare questo parametro
     );
     notifyListeners();
+  }
+
+  // IMPOSTA LA MESSA
+  void setBaseBet(double newBet) {
+    // Validazione tollerante per float: deve essere multiplo di 0.30
+    double remainder = newBet % 0.30;
+    // Se resto è ~0 o ~0.30
+    if (remainder < 0.001 || (0.30 - remainder) < 0.001) {
+      baseBet = newBet;
+      _autoSave();
+      notifyListeners();
+    } else {
+      debugPrint("Messa non valida: $newBet");
+    }
   }
 
   void addPlayer(String name) {
@@ -70,106 +95,97 @@ class GameProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // FASE 1 -> FASE 1 (Giro a vuoto / Passa Mazzo)
+  // FASE 1 -> FASE 1 (Passa Mazzo)
   void passHandWithoutPlaying() {
     if (players.isEmpty) return;
-    
-    // 1. Il DEALER ATTUALE paga 1 al piatto (penalità per non aver giocato/passato)
-    // O è il NUOVO dealer che paga l'invito? 
-    // Di solito: "Passo" -> il mazzo gira -> il NUOVO dealer mette l'invito.
-    // Interpretiamo la tua richiesta: "il piatto viene alzato di 1... presi dai giocatori".
-    
-    // Logica: Spostiamo il dealer, e il NUOVO dealer paga l'invito obbligatorio.
     dealerIndex = (dealerIndex + 1) % players.length;
     
+    // Il nuovo dealer mette la baseBet
     Player newDealer = players[dealerIndex];
-    newDealer.score -= 1; // Preleviamo dal giocatore
-    currentPot += 1;      // Mettiamo nel piatto
+    newDealer.score -= baseBet;
+    currentPot += baseBet;
     
     _autoSave();
   }
 
-  // FASE 1 -> FASE 2 (Inizia la mano)
+  // FASE 1 -> FASE 2
   void startHand() {
     currentPhase = GamePhase.pickingWinners;
     selectedPlayerIds.clear();
     _autoSave();
   }
 
-  // FASE 2 -> FASE 3 (Distribuzione vincite)
+  // FASE 2 -> FASE 3
   void confirmWinners() {
     if (selectedPlayerIds.isEmpty) return;
 
     int numWinners = selectedPlayerIds.length;
-    int splitAmount = (currentPot / numWinners).floor(); 
     
-    // I vincitori prendono i soldi DAL PIATTO
+    // Divisione Reale
+    double splitAmount = currentPot / numWinners; 
+    
     for (String id in selectedPlayerIds) {
       final player = players.firstWhere((p) => p.id == id);
       player.score += splitAmount;
     }
     
-    // Nota: Il 'currentPot' rimane tecnicamente invariato nel valore numerico
-    // per usarlo come riferimento per le penalità ("paghi quanto c'era nel piatto").
-    // Ma i soldi sono stati distribuiti.
-
     currentPhase = GamePhase.pickingLosers;
     selectedPlayerIds.clear(); 
     _autoSave();
   }
 
-  // FASE 3 -> FASE 1 (Penalità e Nuovo Piatto)
+  // FASE 3 -> FASE 1
   void confirmLosersAndEndHand() {
-    int penaltyAmount = currentPot; 
-    int totalPenaltiesCollected = 0;
+    double penaltyAmount = currentPot; // La penalità è il piatto intero (che ora è stato distribuito ma il valore numerico in currentPot è il riferimento)
+    double totalPenaltiesCollected = 0.0;
 
-    // 1. I PERDENTI pagano le penalità
+    // Perdenti pagano
     for (String id in selectedPlayerIds) {
       final player = players.firstWhere((p) => p.id == id);
-      player.score -= penaltyAmount; // Escono dalle tasche
+      player.score -= penaltyAmount;
       totalPenaltiesCollected += penaltyAmount;
     }
 
-    // 2. Sposta il Dealer
     if (players.isNotEmpty) {
       dealerIndex = (dealerIndex + 1) % players.length;
       
-      // 3. Il NUOVO Dealer paga l'invito obbligatorio (+1)
+      // Nuovo Dealer mette invito
       Player newDealer = players[dealerIndex];
-      newDealer.score -= 1; // Esce dalla tasca
+      newDealer.score -= baseBet;
       
-      // 4. Calcolo Nuovo Piatto
-      // Piatto = (Soldi raccolti dai perdenti) + (1 euro del nuovo dealer)
-      currentPot = totalPenaltiesCollected + 1; 
+      currentPot = totalPenaltiesCollected + baseBet; 
     } else {
-      currentPot = 0;
+      currentPot = 0.0;
     }
 
     currentPhase = GamePhase.dealerSelection;
     selectedPlayerIds.clear();
-    
     _autoSave();
   }
-  
-  // TERMINA PARTITA
-  // Ritorna la lista dei giocatori ordinata per punteggio (decrescente)
+
+  // END GAME
   List<Player> endGame() {
-    // 1. Ordina i giocatori per punteggio (dal più alto al più basso)
+    // Restituzione invito se il piatto contiene SOLO la messa base
+    if ((currentPot - baseBet).abs() < 0.01 && players.isNotEmpty) {
+      final dealer = players[dealerIndex];
+      dealer.score += baseBet;
+      currentPot = 0.0;
+    }
+
+    // Check somma zero (debug)
+    double totalScore = players.fold(0.0, (sum, p) => sum + p.score);
+    if (totalScore.abs() > 0.01) {
+      debugPrint("ERRORE CONTABILE: Somma non zero ($totalScore)");
+    }
+
     List<Player> rankedPlayers = List.from(players);
     rankedPlayers.sort((a, b) => b.score.compareTo(a.score));
 
-    // 2. Resetta il gioco per una nuova partita
-    // Nota: Non cancelliamo subito i giocatori dalla RAM perché ci servono per mostrarli nella tabella
-    // Ma puliamo il DB o prepariamo il reset dei punteggi.
-    
-    // Opzione: Resetta tutto subito
     players = [];
     dealerIndex = 0;
-    currentPot = 0;
+    currentPot = 0.0;
     currentPhase = GamePhase.dealerSelection;
     selectedPlayerIds.clear();
-    
-    // Salva lo stato "vuoto" nel DB così se riapre l'app è pulita
     _autoSave(); 
 
     return rankedPlayers;
