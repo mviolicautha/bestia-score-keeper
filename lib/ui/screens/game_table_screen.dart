@@ -37,6 +37,14 @@ class GameTableScreen extends StatelessWidget {
         centerTitle: true,
         backgroundColor: const Color(0xFF2E3B55),
         elevation: 0,
+        actions: [
+          // Tasto TERMINA PARTITA
+          IconButton(
+            icon: const Icon(Icons.flag, color: Colors.redAccent),
+            onPressed: () => _showEndGameDialog(context),
+            tooltip: "Termina Partita",
+          ),
+        ],
       ),
       backgroundColor: const Color(0xFF2E3B55),
       body: Column(
@@ -259,5 +267,140 @@ class GameTableScreen extends StatelessWidget {
           ],
         ),
       );
+  }
+
+    void _showEndGameDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // Impedisce di chiudere cliccando fuori
+      builder: (ctx) => AlertDialog(
+        title: const Text("Terminare la partita?"),
+        content: const Text("Questa azione resetterà tutti i punteggi e mostrerà la classifica finale."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Annulla"),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () {
+              Navigator.pop(ctx); // Chiudi il dialog di conferma
+              _processEndGame(context); // Mostra risultati
+            },
+            child: const Text("TERMINA", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _processEndGame(BuildContext context) {
+    // Ottieni i risultati e resetta
+    final results = Provider.of<GameProvider>(context, listen: false).endGame();
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.white,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 20), // Margini ridotti
+        child: Container(
+          width: double.maxFinite, // Occupa larghezza disponibile
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min, // Si adatta al contenuto
+            children: [
+              // Header
+              const Text(
+                "RISULTATI FINALI",
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87),
+              ),
+              const Divider(thickness: 2, color: Colors.black12),
+              
+              const SizedBox(height: 10),
+
+              // TABELLA COMPATTA (Senza Scroll)
+              // Usiamo Flexible per dire "usa lo spazio che serve ma non scrollare se possibile"
+              // Se i giocatori sono 10, riduciamo leggermente il font o lo spazio
+              ...List.generate(results.length, (index) {
+                final p = results[index];
+                final isWinner = p.score > 0;
+                final isLoser = p.score < 0;
+                Color rowColor = index % 2 == 0 ? Colors.grey[50]! : Colors.white; // Zebra striping
+
+                return Container(
+                  color: rowColor,
+                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                  child: Row(
+                    children: [
+                      // POSIZIONE
+                      SizedBox(
+                        width: 30,
+                        child: index == 0 
+                          ? const Icon(Icons.emoji_events, color: Colors.amber, size: 24)
+                          : Text(
+                              "#${index + 1}", 
+                              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey),
+                              textAlign: TextAlign.center,
+                            ),
+                      ),
+                      const SizedBox(width: 10),
+                      
+                      // NOME
+                      Expanded(
+                        child: Text(
+                          p.name,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          overflow: TextOverflow.ellipsis, // Se il nome è lunghissimo lo taglia
+                        ),
+                      ),
+
+                      // PUNTEGGIO
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: isWinner ? Colors.green[50] : (isLoser ? Colors.red[50] : Colors.grey[100]),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: isWinner ? Colors.green : (isLoser ? Colors.red : Colors.grey),
+                            width: 1
+                          )
+                        ),
+                        child: Text(
+                          "${p.score > 0 ? '+' : ''}${p.score} €",
+                          style: TextStyle(
+                            color: isWinner ? Colors.green[800] : (isLoser ? Colors.red[800] : Colors.black54),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+
+              const Spacer(), // Spinge il bottone in fondo se c'è spazio extra
+
+              const SizedBox(height: 20),
+              
+              // FOOTER CON BOTTONE
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.refresh, color: Colors.white),
+                  label: const Text("NUOVA PARTITA", style: TextStyle(color: Colors.white)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2E3B55),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  onPressed: () => Navigator.pop(ctx),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

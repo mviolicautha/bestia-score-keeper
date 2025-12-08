@@ -150,4 +150,28 @@ class GameProvider extends ChangeNotifier {
     
     _autoSave();
   }
+  
+  // TERMINA PARTITA
+  // Ritorna la lista dei giocatori ordinata per punteggio (decrescente)
+  List<Player> endGame() {
+    // 1. Ordina i giocatori per punteggio (dal più alto al più basso)
+    List<Player> rankedPlayers = List.from(players);
+    rankedPlayers.sort((a, b) => b.score.compareTo(a.score));
+
+    // 2. Resetta il gioco per una nuova partita
+    // Nota: Non cancelliamo subito i giocatori dalla RAM perché ci servono per mostrarli nella tabella
+    // Ma puliamo il DB o prepariamo il reset dei punteggi.
+    
+    // Opzione: Resetta tutto subito
+    players = [];
+    dealerIndex = 0;
+    currentPot = 0;
+    currentPhase = GamePhase.dealerSelection;
+    selectedPlayerIds.clear();
+    
+    // Salva lo stato "vuoto" nel DB così se riapre l'app è pulita
+    _autoSave(); 
+
+    return rankedPlayers;
+  }
 }
