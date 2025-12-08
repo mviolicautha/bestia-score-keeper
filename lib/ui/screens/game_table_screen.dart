@@ -1,14 +1,34 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:showcaseview/showcaseview.dart'; 
 import 'package:bestia_scoreboard_application/logic/game_provider.dart';
 import 'package:bestia_scoreboard_application/data/model/player.dart';
 
-class GameTableScreen extends StatelessWidget {
+class GameTableScreen extends StatefulWidget {
   const GameTableScreen({super.key});
 
   @override
+  State<GameTableScreen> createState() => _GameTableScreenState();
+}
+
+class _GameTableScreenState extends State<GameTableScreen> {
+  // Chiavi per il Tutorial
+  final GlobalKey _potKey = GlobalKey();
+  final GlobalKey _settingsKey = GlobalKey();
+  final GlobalKey _undoKey = GlobalKey();
+  final GlobalKey _addPlayerKey = GlobalKey();
+  final GlobalKey _actionsKey = GlobalKey();
+  final GlobalKey _endGameKey = GlobalKey();
+
+  @override
   Widget build(BuildContext context) {
+    return ShowCaseWidget(
+      builder: (context) => _buildScaffold(context),
+    );
+  }
+
+  Widget _buildScaffold(BuildContext context) {
     final game = context.watch<GameProvider>();
     
     // Status Bar & Colori
@@ -36,19 +56,41 @@ class GameTableScreen extends StatelessWidget {
         centerTitle: true,
         backgroundColor: const Color(0xFF1A233A), 
         elevation: 0,
-        leading: game.canUndo 
-          ? IconButton(
-              icon: const Icon(Icons.undo, color: Colors.amberAccent),
-              tooltip: "Annulla ultima azione",
-              onPressed: () {
-                game.undoLastAction();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Azione annullata"), duration: Duration(seconds: 1))
-                );
-              },
-            )
-          : null,
+        // TASTO TUTORIAL (Sinistra)
+        leading: IconButton(
+          icon: const Icon(Icons.help_outline, color: Colors.cyanAccent),
+          tooltip: "Guida / Tutorial",
+          onPressed: () {
+            ShowCaseWidget.of(context).startShowCase([
+              _potKey,
+              _addPlayerKey,
+              _actionsKey, // Il cuore della spiegazione è qui
+              _undoKey,
+              _endGameKey,
+            ]);
+          },
+        ),
         actions: [
+          // UNDO
+          if (game.canUndo)
+            Showcase(
+              key: _undoKey,
+              title: 'Annulla Azione',
+              description: 'Hai sbagliato a segnare?\nTorna indietro fino a 5 mosse.',
+              child: IconButton(
+                icon: const Icon(Icons.undo, color: Colors.amberAccent),
+                tooltip: "Annulla ultima azione",
+                onPressed: () {
+                  game.undoLastAction();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Azione annullata"), duration: Duration(seconds: 1))
+                  );
+                },
+              ),
+            ),
+
+          // SETTINGS
+          // (Non mettiamo il tutorial qui per non affollare, è intuitivo)
           IconButton(
             icon: Icon(Icons.settings, color: game.canChangeBet ? Colors.white : Colors.white24),
             tooltip: "Imposta Messa",
@@ -60,25 +102,37 @@ class GameTableScreen extends StatelessWidget {
               }
             },
           ),
-          IconButton(
-            icon: const Icon(Icons.flag, color: Colors.redAccent), 
-            tooltip: "Termina Partita",
-            onPressed: () => _showEndGameDialog(context)
+
+          // END GAME
+          Showcase(
+            key: _endGameKey,
+            title: 'Fine Partita',
+            description: 'Termina la sessione, restituisce gli inviti\ne calcola la classifica finale.',
+            child: IconButton(
+              icon: const Icon(Icons.flag, color: Colors.redAccent), 
+              tooltip: "Termina Partita",
+              onPressed: () => _showEndGameDialog(context)
+            ),
           ),
         ],
       ),
       backgroundColor: const Color(0xFF1A233A),
       body: Column(
         children: [
-          // HEADER PIATTO
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            child: Column(
-              children: [
-                const Text("PIATTO", style: TextStyle(color: Colors.white38, letterSpacing: 2, fontSize: 10)),
-                Text("${game.currentPot.toStringAsFixed(2)} €", style: const TextStyle(color: Color(0xFFFFD700), fontSize: 42, fontWeight: FontWeight.bold, height: 1.0)),
-                Text("Messa: ${game.baseBet.toStringAsFixed(2)} €", style: const TextStyle(color: Colors.white24, fontSize: 11)),
-              ],
+          // HEADER PIATTO (Showcased)
+          Showcase(
+            key: _potKey,
+            title: 'Il Piatto',
+            description: "Qui vedi il montepremi attuale.\nL'invito viene versato automaticamente.",
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Column(
+                children: [
+                  const Text("PIATTO", style: TextStyle(color: Colors.white38, letterSpacing: 2, fontSize: 10)),
+                  Text("${game.currentPot.toStringAsFixed(2)} €", style: const TextStyle(color: Color(0xFFFFD700), fontSize: 42, fontWeight: FontWeight.bold, height: 1.0)),
+                  Text("Messa: ${game.baseBet.toStringAsFixed(2)} €", style: const TextStyle(color: Colors.white24, fontSize: 11)),
+                ],
+              ),
             ),
           ),
 
@@ -130,20 +184,16 @@ class GameTableScreen extends StatelessWidget {
                           
                           int groupIndex = game.getPlayerGroupIndex(p.id);
                           
-                          // --- LOGICA DISABILITAZIONE VISIVA ---
                           bool isDisabled = false;
-                          // Se siamo in fase PickingLosers E il giocatore ha vinto questa mano, lo disabilitiamo
                           if (game.currentPhase == GamePhase.pickingLosers) {
                             if (game.currentHandWinners.contains(p.id)) {
                               isDisabled = true;
                             }
                           }
-                          // -------------------------------------
 
                           return Transform.translate(
                             offset: Offset(playerRadius * cos(angle), playerRadius * sin(angle)),
                             child: GestureDetector(
-                              // Se disabilitato, il tap è null (non cliccabile)
                               onTap: isDisabled ? null : () {
                                 if (game.currentPhase == GamePhase.dealerSelection) {
                                   if (game.canChangeBet) {
@@ -151,15 +201,19 @@ class GameTableScreen extends StatelessWidget {
                                   } 
                                   return;
                                 }
-                                game.togglePlayerSelection(p.id);
+                                
+                                bool success = game.togglePlayerSelection(p.id);
+                                if (!success && game.currentPhase == GamePhase.pickingLosers) {
+                                   ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text("Impossibile! Questo giocatore ha vinto la mano."),
+                                      backgroundColor: Colors.redAccent,
+                                      duration: Duration(seconds: 1),
+                                    )
+                                   );
+                                }
                               },
-                              child: _buildEnhancedPlayerAvatar(
-                                p, 
-                                groupIndex, 
-                                game.currentPhase, 
-                                angle,
-                                isDisabled: isDisabled // Passiamo lo stato
-                              ),
+                              child: _buildEnhancedPlayerAvatar(p, groupIndex, game.currentPhase, angle, isDisabled: isDisabled),
                             ),
                           );
                         }),
@@ -188,12 +242,10 @@ class GameTableScreen extends StatelessWidget {
 
   // --- WIDGETS ---
 
-   Widget _buildEnhancedPlayerAvatar(Player player, int groupIndex, GamePhase phase, double angle, {bool isDisabled = false}) {
+  Widget _buildEnhancedPlayerAvatar(Player player, int groupIndex, GamePhase phase, double angle, {bool isDisabled = false}) {
     Color borderColor = Colors.white24;
     double borderWidth = 2;
     double scale = 1.0;
-
-    // Se disabilitato, riduciamo l'opacità
     double opacity = isDisabled ? 0.3 : 1.0;
 
     List<Color> groupColors = [Colors.greenAccent, Colors.cyanAccent, Colors.orangeAccent, Colors.purpleAccent];
@@ -212,10 +264,8 @@ class GameTableScreen extends StatelessWidget {
       groupLabel = "GRUPPO $letter";
     }
 
-    // Hash Colore Sfondo (rimane utile per distinguere visivamente i giocatori anche senza iniziali)
     final int hash = player.name.codeUnits.fold(0, (p, c) => p + c);
     final List<Color> avatarColors = [Colors.blue.shade700, Colors.teal.shade700, Colors.indigo.shade700, Colors.deepPurple.shade700, Colors.brown.shade700];
-    
     final Color avatarColor = isDisabled ? Colors.grey.shade800 : avatarColors[hash % avatarColors.length];
 
     return Opacity(
@@ -229,7 +279,6 @@ class GameTableScreen extends StatelessWidget {
               clipBehavior: Clip.none,
               alignment: Alignment.topCenter,
               children: [
-                // AVATAR CON ICONA
                 Container(
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
@@ -237,14 +286,13 @@ class GameTableScreen extends StatelessWidget {
                     boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 4, offset: const Offset(0, 2))],
                   ),
                   child: CircleAvatar(
-                    radius: 28, // Leggermente più grande (era 26)
+                    radius: 28,
                     backgroundColor: avatarColor,
                     foregroundColor: Colors.white, 
-                    child: const Icon(Icons.person, size: 34), // Icona Utente
+                    child: const Icon(Icons.person, size: 34),
                   ),
                 ),
 
-                // BADGE GRUPPO
                 if (groupLabel != null)
                   Positioned(
                     top: -12, 
@@ -271,13 +319,12 @@ class GameTableScreen extends StatelessWidget {
             ),
             const SizedBox(height: 6), 
             
-            // BOX NOME & SCORE
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5), // Più padding verticale
-              constraints: const BoxConstraints(maxWidth: 95), // Più largo per accogliere font maggiore
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              constraints: const BoxConstraints(maxWidth: 95),
               decoration: BoxDecoration(
                 color: Colors.black87,
-                borderRadius: BorderRadius.circular(10), // Più arrotondato
+                borderRadius: BorderRadius.circular(10), 
                 border: Border.all(color: Colors.white12),
               ),
               child: Column(
@@ -289,7 +336,7 @@ class GameTableScreen extends StatelessWidget {
                     overflow: TextOverflow.ellipsis, 
                     style: const TextStyle(
                       color: Colors.white, 
-                      fontSize: 13, // NOME PIÙ GRANDE
+                      fontSize: 13, 
                       fontWeight: FontWeight.bold
                     )
                   ),
@@ -299,7 +346,7 @@ class GameTableScreen extends StatelessWidget {
                     textAlign: TextAlign.center, 
                     style: TextStyle(
                       color: player.score < 0 ? Colors.redAccent : Colors.greenAccent, 
-                      fontSize: 11, // Punteggio rimane 11 per gerarchia visiva
+                      fontSize: 11, 
                       fontWeight: FontWeight.w900, 
                       letterSpacing: 0.5
                     )
@@ -333,6 +380,19 @@ class GameTableScreen extends StatelessWidget {
   }
 
   Widget _buildBottomControls(BuildContext context, GameProvider game) {
+    // SHOWCASE PRINCIPALE: Flusso di Gioco
+    return Showcase(
+      key: _actionsKey,
+      title: 'Flusso di Gioco (3 Fasi)',
+      description: 
+        "1. INIZIALE: Usa 'PASSA' per far girare le carte e alzare il piatto.\n\n"
+        "2. VINCITORI: Premi 'GIOCA MANO' per assegnare le quote. Usa il tasto LINK per creare società.\n\n"
+        "3. SCONFITTI: Dopo le vincite, seleziona chi è andato in Bestia (anche qui puoi creare gruppi).",
+      child: _buildRealBottomControls(context, game),
+    );
+  }
+
+  Widget _buildRealBottomControls(BuildContext context, GameProvider game) {
     if (game.currentPhase == GamePhase.dealerSelection) {
         bool canAddMore = game.players.length < 15;
         bool isPotClean = game.canChangeBet;
@@ -352,18 +412,24 @@ class GameTableScreen extends StatelessWidget {
             
             Row(
               children: [
-                FloatingActionButton.small(
-                  heroTag: "add", 
-                  backgroundColor: enableAddButton ? Colors.blueGrey : Colors.grey[800], 
-                  onPressed: () {
-                    if (!canAddMore) return; 
-                    if (!isPotClean) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Impossibile aggiungere giocatori a partita in corso!"), backgroundColor: Colors.orange));
-                    } else {
-                      _showAddPlayerDialog(context);
-                    }
-                  }, 
-                  child: Icon(Icons.person_add, color: enableAddButton ? Colors.white : Colors.white24)
+                // SHOWCASE AGGIUNGI
+                Showcase(
+                  key: _addPlayerKey,
+                  title: 'Imposta Tavolo',
+                  description: 'Aggiungi i giocatori qui.\nIl primo inserito sarà il mazziere.',
+                  child: FloatingActionButton.small(
+                    heroTag: "add", 
+                    backgroundColor: enableAddButton ? Colors.blueGrey : Colors.grey[800], 
+                    onPressed: () {
+                      if (!canAddMore) return; 
+                      if (!isPotClean) {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Impossibile aggiungere giocatori a partita in corso!"), backgroundColor: Colors.orange));
+                      } else {
+                        _showAddPlayerDialog(context);
+                      }
+                    }, 
+                    child: Icon(Icons.person_add, color: enableAddButton ? Colors.white : Colors.white24)
+                  ),
                 ),
                 const SizedBox(width: 12),
                 
@@ -386,6 +452,7 @@ class GameTableScreen extends StatelessWidget {
         );
     }
 
+    // FASE 2/3
     Color btnColor = game.currentPhase == GamePhase.pickingWinners ? const Color(0xFF43A047) : const Color(0xFFE53935);
     String btnText = game.currentPhase == GamePhase.pickingWinners ? "CONFERMA" : "FINE MANO";
     VoidCallback? onConfirm;
