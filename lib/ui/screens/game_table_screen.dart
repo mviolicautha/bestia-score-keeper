@@ -719,13 +719,24 @@ class _GameTableScreenState extends State<GameTableScreen> {
       showDialog(context: context, builder: (ctx) => AlertDialog(
           backgroundColor: const Color(0xFF263238),
           title: const Text("Nuovo Giocatore", style: TextStyle(color: Colors.white)),
-          content: TextField(controller: controller, style: const TextStyle(color: Colors.white), decoration: const InputDecoration(hintText: "Nome", hintStyle: TextStyle(color: Colors.white38), enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white38)))),
+          content: TextField(
+            controller: controller, 
+            maxLength: 15, // LIMITA A 15 CARATTERI
+            style: const TextStyle(color: Colors.white), 
+            decoration: const InputDecoration(
+              hintText: "Nome", 
+              hintStyle: TextStyle(color: Colors.white38), 
+              enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white38)),
+              counterStyle: TextStyle(color: Colors.white54), // Stile del contatore 0/15
+            )
+          ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Annulla", style: TextStyle(color: Colors.white54))),
             ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.blue), onPressed: () { if (controller.text.isNotEmpty) { bool success = Provider.of<GameProvider>(context, listen: false).addPlayer(controller.text); Navigator.pop(ctx); if(!success) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Impossibile aggiungere (Tavolo pieno o Piatto sporco)"))); } }, child: const Text("Aggiungi", style: TextStyle(color: Colors.white)))
           ],
         ));
   }
+
 
   void _showPlayerStatsDialog(BuildContext context, Player p) {
     showDialog(context: context, builder: (ctx) => AlertDialog(backgroundColor: Colors.white, title: Row(children: [CircleAvatar(backgroundColor: Colors.blueGrey, child: Text(p.name[0], style: const TextStyle(color: Colors.white))), const SizedBox(width: 10), Text(p.name, style: const TextStyle(color: Colors.black87))]), content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [Text("Bilancio: ${p.score.toStringAsFixed(2)} €", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: p.score < 0 ? Colors.red : Colors.green)), const SizedBox(height: 20), const Text("Vuoi che questo giocatore lasci il tavolo?\nIl suo storico verrà mantenuto per il calcolo finale, ma non parteciperà più alle mani successive.", style: TextStyle(fontSize: 13, color: Colors.grey))]), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Annulla")), ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), icon: const Icon(Icons.exit_to_app, color: Colors.white), label: const Text("ABBANDONA TAVOLO", style: TextStyle(color: Colors.white)), onPressed: () { Provider.of<GameProvider>(context, listen: false).playerLeavesTable(p.id); Navigator.pop(ctx); })]));
