@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:bestia_scoreboard_application/data/database_helper.dart';
 import 'package:bestia_scoreboard_application/data/model/player.dart';
-import 'package:bestia_scoreboard_application/data/model/game_log.dart'; // Import Log Model
+import 'package:bestia_scoreboard_application/data/model/game_log.dart'; 
 
 class GameSnapshot {
   final List<Player> players;
@@ -12,7 +12,7 @@ class GameSnapshot {
   final List<Set<String>> selectionGroups;
   final bool isLinkingMode;
   final Set<String> currentHandWinners;
-  final List<GameLog> logs; // Salviamo anche lo storico
+  final List<GameLog> logs; 
 
   GameSnapshot({
     required this.players,
@@ -38,7 +38,6 @@ class GameProvider extends ChangeNotifier {
   bool isLinkingMode = false;
   Set<String> currentHandWinners = {};
 
-  // LISTA LOG (Storico)
   List<GameLog> gameLogs = [];
 
   final List<GameSnapshot> _history = [];
@@ -79,7 +78,6 @@ class GameProvider extends ChangeNotifier {
         ? GamePhase.values[phaseIndex] 
         : GamePhase.dealerSelection;
 
-    // Carica Logs
     if (data.containsKey('logs')) {
       final logsList = data['logs'] as List<Map<String, dynamic>>;
       gameLogs = logsList.map((m) => GameLog.fromMap(m)).toList();
@@ -93,7 +91,6 @@ class GameProvider extends ChangeNotifier {
     DatabaseHelper.instance.saveGame(
       players, dealerIndex, currentPot, currentPhase.index, baseBet
     );
-    // Nota: i log vengono salvati singolarmente via addLog, o in blocco via overwriteLogs
     notifyListeners();
   }
 
@@ -105,8 +102,62 @@ class GameProvider extends ChangeNotifier {
       timestamp: DateTime.now(),
       type: type
     );
-    gameLogs.insert(0, newLog); // Aggiungi in cima (più recente)
+    gameLogs.insert(0, newLog); 
     DatabaseHelper.instance.addLog(newLog);
+  }
+
+  // --- STATISTICHE ---
+
+  Map<String, dynamic> calculateStats() {
+    Map<String, int> winsCount = {};
+    Map<String, int> bestieCount = {};
+    int totalRounds = 0;
+    double maxPotFound = 0.0; 
+
+    for (var log in gameLogs) {
+      if (log.type == LogType.pass) {
+        totalRounds++;
+      }
+      
+      if (log.message.contains("Piatto: ")) {
+        try {
+          final parts = log.message.split("Piatto: ");
+          if (parts.length > 1) {
+            String amountStr = parts[1].replaceAll("€", "").trim();
+            double amount = double.tryParse(amountStr) ?? 0.0;
+            if (amount > maxPotFound) maxPotFound = amount;
+          }
+        } catch (e) { }
+      }
+
+      if (log.type == LogType.gain) {
+        String clean = log.message.replaceAll("Vincita assegnata: ", "");
+        List<String> parts = clean.split(", ");
+        for (var part in parts) {
+          String name = part.split(" (")[0].trim();
+          List<String> subNames = name.split("&");
+          for(var n in subNames) winsCount[n] = (winsCount[n] ?? 0) + 1;
+        }
+      }
+      else if (log.type == LogType.loss) {
+        String clean = log.message.replaceAll("Bestie assegnate: ", "");
+        List<String> parts = clean.split(", ");
+        for (var part in parts) {
+          String name = part.split(" (")[0].trim();
+          List<String> subNames = name.split("&");
+          for(var n in subNames) bestieCount[n] = (bestieCount[n] ?? 0) + 1;
+        }
+      }
+    }
+    
+    if (currentPot > maxPotFound) maxPotFound = currentPot;
+
+    return {
+      'wins': winsCount,
+      'bestie': bestieCount,
+      'rounds': totalRounds,
+      'maxPot': maxPotFound, 
+    };
   }
 
   // --- LOGICA UNDO ---
@@ -115,7 +166,6 @@ class GameProvider extends ChangeNotifier {
     final playersCopy = players.map((p) => p.copy()).toList();
     final groupsCopy = selectionGroups.map((set) => Set<String>.from(set)).toList();
     final winnersCopy = Set<String>.from(currentHandWinners);
-    // Copia anche i log attuali per poter tornare indietro
     final logsCopy = List<GameLog>.from(gameLogs);
 
     final snapshot = GameSnapshot(
@@ -151,7 +201,6 @@ class GameProvider extends ChangeNotifier {
     isLinkingMode = snapshot.isLinkingMode;
     currentHandWinners = Set<String>.from(snapshot.currentHandWinners);
     
-    // Ripristina Logs e Salva su DB
     gameLogs = List<GameLog>.from(snapshot.logs);
     DatabaseHelper.instance.overwriteLogs(gameLogs);
 
@@ -246,12 +295,9 @@ class GameProvider extends ChangeNotifier {
   bool togglePlayerSelection(String playerId) {
     if (currentPhase == GamePhase.dealerSelection) return false;
 
-    if (currentPhase == GamePhase.pickingLosers) {
-      if (currentHandWinners.contains(playerId)) {
-        return false; 
-      }
-    }
-
+    // MODIFICA: Rimosso il blocco rigido sui vincitori in fase perdenti.
+    // Ora la UI gestirà la conferma.
+    
     int existingGroupIndex = -1;
     for (int i = 0; i < selectionGroups.length; i++) {
       if (selectionGroups[i].contains(playerId)) {
@@ -305,7 +351,6 @@ class GameProvider extends ChangeNotifier {
 
     passDealerTokenToNextActive();
     
-    // Il nuovo dealer paga
     players[dealerIndex].score -= baseBet;
     currentPot += baseBet;
     
@@ -323,31 +368,68 @@ class GameProvider extends ChangeNotifier {
     isLinkingMode = false;
     _autoSave();
   }
-
-  void confirmWinners() {
+  // Modificato per accettare l'indice del gruppo che prende 2/3 (opzionale)
+  void confirmWinners({int? majorGroupIndex}) {
     if (selectionGroups.isEmpty) return;
 
     _saveSnapshot();
 
-    int numberOfEntities = selectionGroups.length;
-    double amountPerEntity = currentPot / numberOfEntities;
+    int numberOfGroups = selectionGroups.length;
+    double pot = currentPot;
+    
+    // CASO SPECIALE: 2 GRUPPI (2/3 e 1/3)
+    // Se numberOfGroups == 2, majorGroupIndex DEVE essere passato dalla UI.
+    // Se non è passato (null), significa che la UI deve ancora chiederlo.
     
     currentHandWinners.clear();
     List<String> logParts = [];
 
-    for (var group in selectionGroups) {
-      currentHandWinners.addAll(group);
+    if (numberOfGroups == 2 && majorGroupIndex != null) {
+      // Calcolo sbilanciato
+      double oneThird = pot / 3.0;
+      double twoThirds = oneThird * 2.0;
 
-      int membersCount = group.length;
-      double amountPerPlayer = amountPerEntity / membersCount;
-      
-      List<String> names = [];
-      for (String id in group) {
-        final player = players.firstWhere((p) => p.id == id);
-        player.score += amountPerPlayer;
-        names.add(player.name);
+      for (int i = 0; i < numberOfGroups; i++) {
+        Set<String> group = selectionGroups[i];
+        currentHandWinners.addAll(group);
+        
+        // Se è il gruppo "maggiore" prende 2/3, altrimenti 1/3
+        double groupTotalAmount = (i == majorGroupIndex) ? twoThirds : oneThird;
+        
+        int membersCount = group.length;
+        double amountPerPlayer = groupTotalAmount / membersCount;
+        
+        List<String> names = [];
+        for (String id in group) {
+          final player = players.firstWhere((p) => p.id == id);
+          player.score += amountPerPlayer;
+          names.add(player.name);
+        }
+        
+        // Log specifico per capire chi ha preso di più
+        String shareLabel = (i == majorGroupIndex) ? "(2/3)" : "(1/3)";
+        logParts.add("${names.join('&')} $shareLabel (+${groupTotalAmount.toStringAsFixed(2)}€)");
       }
-      logParts.add("${names.join('&')} (+${amountPerEntity.toStringAsFixed(2)}€)");
+
+    } else {
+      // CASO STANDARD (1 vincitore o 3 vincitori)
+      // Qui la divisione rimane equa (tutto il piatto o 1/3 a testa)
+      double amountPerEntity = pot / numberOfGroups;
+
+      for (var group in selectionGroups) {
+        currentHandWinners.addAll(group);
+
+        int membersCount = group.length;
+        double amountPerPlayer = amountPerEntity / membersCount;
+
+        List<String> names = [];
+        for (String id in group) {
+          final player = players.firstWhere((p) => p.id == id);
+          player.score += amountPerPlayer;
+          names.add(player.name);
+        }
+        logParts.add("${names.join('&')} (+${amountPerEntity.toStringAsFixed(2)}€)");
+      }
     }
     
     _logAction("Vincita assegnata: ${logParts.join(', ')}", LogType.gain);
@@ -402,79 +484,6 @@ class GameProvider extends ChangeNotifier {
     _autoSave();
   }
 
-  Map<String, dynamic> calculateStats() {
-    Map<String, int> winsCount = {};
-    Map<String, int> bestieCount = {};
-    int totalRounds = 0;
-    double maxPotFound = 0.0; // Variabile per il piatto massimo
-
-    for (var log in gameLogs) {
-      // 1. Calcolo Mani
-      if (log.type == LogType.pass) {
-        totalRounds++;
-      }
-      
-      // 2. Analisi Piatto Massimo (Parsing del testo)
-      // Cerchiamo messaggi che contengono "Piatto: 12.50€"
-      if (log.message.contains("Piatto: ")) {
-        try {
-          // Splittiamo la stringa per isolare il numero finale
-          final parts = log.message.split("Piatto: ");
-          if (parts.length > 1) {
-            // Prendiamo la parte dopo "Piatto: ", togliamo il simbolo € e gli spazi
-            String amountStr = parts[1].replaceAll("€", "").trim();
-            double amount = double.tryParse(amountStr) ?? 0.0;
-            
-            if (amount > maxPotFound) {
-              maxPotFound = amount;
-            }
-          }
-        } catch (e) {
-          // Ignoriamo errori di parsing su messaggi anomali
-        }
-      }
-
-      // 3. Conteggio Vittorie
-      if (log.type == LogType.gain) {
-        String clean = log.message.replaceAll("Vincita assegnata: ", "");
-        List<String> parts = clean.split(", ");
-        for (var part in parts) {
-          String name = part.split(" (")[0].trim();
-          List<String> subNames = name.split("&");
-          for(var n in subNames) {
-             winsCount[n] = (winsCount[n] ?? 0) + 1;
-          }
-        }
-      }
-      
-      // 4. Conteggio Bestie
-      else if (log.type == LogType.loss) {
-        String clean = log.message.replaceAll("Bestie assegnate: ", "");
-        List<String> parts = clean.split(", ");
-        for (var part in parts) {
-          String name = part.split(" (")[0].trim();
-          List<String> subNames = name.split("&");
-          for(var n in subNames) {
-             bestieCount[n] = (bestieCount[n] ?? 0) + 1;
-          }
-        }
-      }
-    }
-    
-    // Controllo finale: se il piatto attuale è il più alto mai raggiunto (es. partita finita col botto)
-    if (currentPot > maxPotFound) {
-      maxPotFound = currentPot;
-    }
-
-    return {
-      'wins': winsCount,
-      'bestie': bestieCount,
-      'rounds': totalRounds,
-      'maxPot': maxPotFound, // Passiamo il dato
-    };
-  }
-
-
   List<Player> endGame() {
     if ((currentPot - baseBet).abs() < 0.01 && players.isNotEmpty) {
       players[dealerIndex].score += baseBet;
@@ -492,7 +501,6 @@ class GameProvider extends ChangeNotifier {
     currentHandWinners.clear();
     _history.clear(); 
     
-    // Pulisci DB
     DatabaseHelper.instance.clearLogs();
     gameLogs.clear();
     
