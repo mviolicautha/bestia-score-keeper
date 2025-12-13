@@ -201,7 +201,7 @@ class _GameTableScreenState extends State<GameTableScreen> {
                                   game.togglePlayerSelection(p.id);
                                 }
                               },
-                              child: _buildEnhancedPlayerAvatar(p, groupIndex, game.currentPhase, angle),
+                              child: _buildEnhancedPlayerAvatar(p, groupIndex, game.currentPhase, angle, index),
                             ),
                           );
                         }),
@@ -393,11 +393,30 @@ class _GameTableScreenState extends State<GameTableScreen> {
     );
   }
 
-  Widget _buildEnhancedPlayerAvatar(Player player, int groupIndex, GamePhase phase, double angle) {
+  Widget _buildEnhancedPlayerAvatar(Player player, int groupIndex, GamePhase phase, double angle, int playerIndex) {
     Color borderColor = Colors.white24;
     double borderWidth = 2;
     double scale = 1.0;
     
+    // Palette di 12 colori distinti per garantire unicità fino a 12 giocatori
+    final List<Color> distinctColors = [
+      Colors.red.shade700,
+      Colors.blue.shade700,
+      Colors.green.shade700,
+      Colors.orange.shade800,
+      Colors.purple.shade700,
+      Colors.teal.shade700,
+      Colors.pink.shade700,
+      Colors.blueGrey.shade700,
+      Colors.brown.shade700,
+      Colors.indigo.shade700,
+      Colors.lime.shade900,
+      Colors.cyan.shade800,
+    ];
+
+    // Assegna il colore in base alla posizione (indice), non al nome
+    final Color avatarColor = distinctColors[playerIndex % distinctColors.length];
+
     List<Color> groupColors = [Colors.greenAccent, Colors.cyanAccent, Colors.orangeAccent, Colors.purpleAccent];
     if (phase == GamePhase.pickingLosers) groupColors = [Colors.redAccent, Colors.deepOrangeAccent, Colors.pinkAccent, Colors.amberAccent];
 
@@ -413,10 +432,6 @@ class _GameTableScreenState extends State<GameTableScreen> {
       groupLabel = "GRUPPO $letter";
     }
 
-    final int hash = player.name.codeUnits.fold(0, (p, c) => p + c);
-    final List<Color> avatarColors = [Colors.blue.shade700, Colors.teal.shade700, Colors.indigo.shade700, Colors.deepPurple.shade700, Colors.brown.shade700];
-    final Color avatarColor = avatarColors[hash % avatarColors.length];
-
     return Transform.scale(
       scale: scale,
       child: Column(
@@ -427,11 +442,27 @@ class _GameTableScreenState extends State<GameTableScreen> {
             alignment: Alignment.topCenter,
             children: [
               Container(
-                decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: borderColor, width: borderWidth), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 4, offset: const Offset(0, 2))]),
-                child: CircleAvatar(radius: 28, backgroundColor: avatarColor, foregroundColor: Colors.white, child: const Icon(Icons.person, size: 34)),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle, 
+                  border: Border.all(color: borderColor, width: borderWidth), 
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 4, offset: const Offset(0, 2))]
+                ),
+                child: CircleAvatar(
+                  radius: 28, 
+                  backgroundColor: avatarColor, // Usa il nuovo colore unico
+                  foregroundColor: Colors.white, 
+                  child: const Icon(Icons.person, size: 34)
+                ),
               ),
               if (groupLabel != null)
-                Positioned(top: -12, child: Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: groupColor, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.white, width: 1.5), boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 2)]), child: Text(groupLabel, style: const TextStyle(color: Colors.black87, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 0.5)))),
+                Positioned(
+                  top: -12, 
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), 
+                    decoration: BoxDecoration(color: groupColor, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.white, width: 1.5), boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 2)]), 
+                    child: Text(groupLabel, style: const TextStyle(color: Colors.black87, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 0.5))
+                  )
+                ),
             ],
           ),
           const SizedBox(height: 6), 
