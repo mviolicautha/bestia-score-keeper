@@ -259,22 +259,53 @@ class GameProvider extends ChangeNotifier {
   }
   
   void playerLeavesTable(String playerId) {
-    if (!canChangeBet) return;
+    if (!canChangeBet) return; // Blocco se la partita è attiva (piatto sporco)
 
     _saveSnapshot();
 
     final index = players.indexWhere((p) => p.id == playerId);
     if (index != -1) {
       String name = players[index].name;
+      bool wasDealer = (dealerIndex == index);
+
+      // 1. Segna il giocatore come inattivo
       players[index].isActive = false;
-      if (dealerIndex == index) {
+
+      // 2. Se era il Dealer, dobbiamo gestire il passaggio del token e dei soldi
+      if (wasDealer) {
+        // A. Restituiamo la messa al vecchio dealer (perché sta uscendo prima di giocare)
+        // Nota: Assumiamo che abbia pagato all'inizio del turno precedente o corrente.
+        // Se il piatto è pulito (canChangeBet = true), significa che siamo a inizio mano.
+        // Solitamente il dealer paga quando si distribuiscono le carte. 
+        // Se consideriamo che il "piatto" corrente contiene già la sua messa:
+        if (currentPot >= baseBet) {
+             players[index].score += baseBet; // Rimborso
+             currentPot -= baseBet; // Tolgo dal piatto
+        }
+
+        // B. Passiamo il token al prossimo attivo
         passDealerTokenToNextActive();
+
+        // C. Il NUOVO Dealer deve pagare la messa per far partire la mano
+        // (Solo se ci sono ancora giocatori attivi)
+        if (activePlayers.isNotEmpty) {
+           players[dealerIndex].score -= baseBet;
+           currentPot += baseBet;
+           
+           _logAction("$name esce (rimborso). Nuovo Dealer: ${players[dealerIndex].name} (paga ${baseBet.toStringAsFixed(2)}€)", LogType.info);
+        } else {
+           _logAction("$name esce. Tavolo vuoto.", LogType.info);
+        }
+      } else {
+        // Se non era il dealer, esce semplicemente
+        _logAction("$name ha lasciato il tavolo", LogType.info);
       }
-      _logAction("$name ha lasciato il tavolo", LogType.info);
+
       _autoSave();
       notifyListeners();
     }
   }
+
 
   void passDealerTokenToNextActive() {
      if (activePlayers.isEmpty) return;

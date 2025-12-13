@@ -477,73 +477,125 @@ class _GameTableScreenState extends State<GameTableScreen> {
   }
 
   Widget _buildEnhancedPlayerAvatar(Player player, int groupIndex, GamePhase phase, double angle, int playerIndex) {
-    Color borderColor = Colors.white24;
-    double borderWidth = 2;
-    double scale = 1.0;
+    const double avatarRadius = 26.0; 
     
+    // Palette Colori
     final List<Color> distinctColors = [
-      Colors.red.shade700, Colors.blue.shade700, Colors.green.shade700, Colors.orange.shade800,
+      Colors.red.shade700, Colors.blue.shade700, Colors.green.shade700, Colors.orange.shade900,
       Colors.purple.shade700, Colors.teal.shade700, Colors.pink.shade700, Colors.blueGrey.shade700,
       Colors.brown.shade700, Colors.indigo.shade700, Colors.lime.shade900, Colors.cyan.shade800,
     ];
-
     final Color avatarColor = distinctColors[playerIndex % distinctColors.length];
 
+    // Gestione Gruppi
+    Color borderColor = Colors.white.withOpacity(0.3);
+    double borderWidth = 2.0;
+    double scale = 1.0;
+    
     List<Color> groupColors = [Colors.greenAccent, Colors.cyanAccent, Colors.orangeAccent, Colors.purpleAccent];
     if (phase == GamePhase.pickingLosers) groupColors = [Colors.redAccent, Colors.deepOrangeAccent, Colors.pinkAccent, Colors.amberAccent];
 
-    String? groupLabel; 
-    Color groupColor = Colors.transparent;
+    Color? groupBadgeColor;
+    String? groupLabel;
 
     if (groupIndex != -1) {
-      borderWidth = 4;
-      groupColor = groupColors[groupIndex % groupColors.length];
-      borderColor = groupColor;
-      scale = 1.15;
-      String letter = String.fromCharCode(65 + (groupIndex % 26)); 
-      groupLabel = "GRUPPO $letter";
+      Color baseColor = groupColors[groupIndex % groupColors.length];
+      borderColor = baseColor;
+      borderWidth = 3.5;
+      groupBadgeColor = baseColor;
+      groupLabel = "${groupIndex + 1}"; 
+      scale = 1.1;
     }
 
     return Transform.scale(
       scale: scale,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+      child: Stack(
+        alignment: Alignment.topCenter,
+        clipBehavior: Clip.none, 
         children: [
-          Stack(
-            clipBehavior: Clip.none,
-            alignment: Alignment.topCenter,
-            children: [
-              Container(
-                decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: borderColor, width: borderWidth), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 4, offset: const Offset(0, 2))]),
-                child: CircleAvatar(radius: 28, backgroundColor: avatarColor, foregroundColor: Colors.white, child: const Icon(Icons.person, size: 34)),
-              ),
-              if (groupLabel != null)
-                Positioned(top: -12, child: Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: groupColor, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.white, width: 1.5), boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 2)]), child: Text(groupLabel, style: const TextStyle(color: Colors.black87, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 0.5)))),
-            ],
-          ),
-          const SizedBox(height: 6), 
+          // 1. TARGHETTA DATI (Sotto)
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            constraints: const BoxConstraints(maxWidth: 95),
-            decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.white12)),
+            margin: const EdgeInsets.only(top: 42),
+            padding: const EdgeInsets.fromLTRB(8, 14, 8, 6),
+            constraints: const BoxConstraints(minWidth: 70, maxWidth: 94),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E2838).withOpacity(0.95),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white12, width: 1),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 4, offset: const Offset(0, 2))
+              ],
+            ),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text(player.name, textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 2),
                 Text(
-                  "${player.score.toStringAsFixed(2)}€", 
-                  textAlign: TextAlign.center, 
+                  player.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  "${player.score.toStringAsFixed(2)}€",
+                  textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: player.score < 0 ? Colors.redAccent : Colors.greenAccent, 
-                    fontSize: 11, 
-                    fontWeight: FontWeight.w900, 
-                    letterSpacing: 0.5,
-                    fontFeatures: const [FontFeature.tabularFigures()], 
+                    color: player.score < 0 ? const Color(0xFFFF5252) : const Color(0xFF69F0AE),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    fontFeatures: const [FontFeature.tabularFigures()],
                   ),
                 ),
               ],
             ),
           ),
+
+          // 2. AVATAR (Sopra)
+          Container(
+            width: avatarRadius * 2,
+            height: avatarRadius * 2,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: const Color(0xFF1A233A), 
+              border: Border.all(color: borderColor, width: borderWidth),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 6, offset: const Offset(0, 3))
+              ],
+            ),
+            child: CircleAvatar(
+              radius: avatarRadius - borderWidth,
+              backgroundColor: avatarColor,
+              foregroundColor: Colors.white, // Colore Icona Bianco
+              // RIPRISTINATA ICONA PERSON AL POSTO DELL'INIZIALE
+              child: const Icon(Icons.person, size: 30), 
+            ),
+          ),
+
+          // 3. BADGE GRUPPO (NUMERO)
+          if (groupLabel != null && groupBadgeColor != null)
+            Positioned(
+              right: -4,
+              top: -4,
+              child: Container(
+                width: 22, height: 22,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: groupBadgeColor,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
+                  boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 2, offset: Offset(0, 1))],
+                ),
+                child: Text(
+                  groupLabel,
+                  style: const TextStyle(
+                    color: Colors.black87, 
+                    fontSize: 11, 
+                    fontWeight: FontWeight.w900
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
