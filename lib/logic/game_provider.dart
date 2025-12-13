@@ -236,7 +236,7 @@ class GameProvider extends ChangeNotifier {
   bool addPlayer(String name) {
     if (!canChangeBet) return false;
 
-    if (players.length < 10) { 
+    if (activePlayers.length < 10) { 
       _saveSnapshot();
       
       final newPlayer = Player(name: name);

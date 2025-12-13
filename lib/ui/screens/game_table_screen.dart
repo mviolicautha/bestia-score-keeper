@@ -475,7 +475,7 @@ class _GameTableScreenState extends State<GameTableScreen> {
 
   Widget _buildRealBottomControls(BuildContext context, GameProvider game) {
     if (game.currentPhase == GamePhase.dealerSelection) {
-        bool canAddMore = game.players.length < 10;
+        bool canAddMore = game.activePlayers.length < 10;
         bool isPotClean = game.canChangeBet;
         bool enableAddButton = canAddMore && isPotClean;
         bool hasMinPlayers = game.activePlayers.length >= 5;
