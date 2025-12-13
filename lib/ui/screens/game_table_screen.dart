@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:ui'; 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:showcaseview/showcaseview.dart'; 
@@ -33,28 +34,11 @@ class _GameTableScreenState extends State<GameTableScreen> {
   Widget _buildScaffold(BuildContext context) {
     final game = context.watch<GameProvider>();
     
-    String statusText = "";
-    Color statusColor = Colors.white;
-    switch (game.currentPhase) {
-      case GamePhase.dealerSelection:
-        statusText = "MANO IN CORSO";
-        break;
-      case GamePhase.pickingWinners:
-        statusText = "SELEZIONA VINCITORI";
-        statusColor = Colors.greenAccent;
-        break;
-      case GamePhase.pickingLosers:
-        statusText = "SELEZIONA BUSSATI";
-        statusColor = Colors.redAccent;
-        break;
-    }
-
     if (game.isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
     return Scaffold(
+      // 1. APPBAR PULITA (Senza Titolo)
       appBar: AppBar(
-        title: Text(statusText, style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 18)),
-        centerTitle: true,
         backgroundColor: const Color(0xFF1A233A), 
         elevation: 0,
         leading: IconButton(
@@ -75,7 +59,7 @@ class _GameTableScreenState extends State<GameTableScreen> {
           Showcase(
             key: _historyKey,
             title: 'Cronologia',
-            description: 'Vedi tutte le azioni della partita:\nvincite, bestie e passaggi.',
+            description: 'Vedi tutte le azioni della partita.',
             child: IconButton(
               icon: const Icon(Icons.history, color: Colors.white),
               tooltip: "Storico Partita",
@@ -86,7 +70,7 @@ class _GameTableScreenState extends State<GameTableScreen> {
             Showcase(
               key: _undoKey,
               title: 'Annulla Azione',
-              description: 'Hai sbagliato a segnare?\nTorna indietro fino a 5 mosse.',
+              description: 'Torna indietro fino a 5 mosse.',
               child: IconButton(
                 icon: const Icon(Icons.undo, color: Colors.amberAccent),
                 tooltip: "Annulla ultima azione",
@@ -112,7 +96,7 @@ class _GameTableScreenState extends State<GameTableScreen> {
           Showcase(
             key: _endGameKey,
             title: 'Fine Partita',
-            description: 'Termina la sessione, restituisce gli inviti\ne calcola la classifica finale.',
+            description: 'Termina la sessione e calcola i risultati.',
             child: IconButton(
               icon: const Icon(Icons.flag, color: Colors.redAccent), 
               tooltip: "Termina Partita",
@@ -124,12 +108,17 @@ class _GameTableScreenState extends State<GameTableScreen> {
       backgroundColor: const Color(0xFF1A233A),
       body: Column(
         children: [
+          // 2. NUOVA ISOLA DI STATO (Sotto l'AppBar)
+          _buildStatusIsland(game.currentPhase),
+          
+          const SizedBox(height: 10),
+
           Showcase(
             key: _potKey,
             title: 'Il Piatto',
-            description: "Qui vedi il montepremi attuale.\nL'invito viene versato automaticamente.",
+            description: "Qui vedi il montepremi attuale.",
             child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 10),
+              padding: const EdgeInsets.symmetric(vertical: 5),
               child: Column(
                 children: [
                   const Text("PIATTO", style: TextStyle(color: Colors.white38, letterSpacing: 2, fontSize: 10)),
@@ -160,14 +149,22 @@ class _GameTableScreenState extends State<GameTableScreen> {
                       alignment: Alignment.center,
                       clipBehavior: Clip.none, 
                       children: [
-                        Container(
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF2E7D32),
-                            shape: BoxShape.circle,
-                            border: Border.all(color: const Color(0xFF4E342E), width: 8),
-                            boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 25, spreadRadius: 5)],
+                        _buildTableBackground(tableDiameter, game.currentPhase),
+                        
+                        if (game.selectionGroups.isNotEmpty)
+                          SizedBox(
+                            width: tableDiameter,
+                            height: tableDiameter,
+                            child: CustomPaint(
+                              painter: SelectionLinesPainter(
+                                players: activeList,
+                                groups: game.selectionGroups,
+                                radius: radius - 35,
+                                phase: game.currentPhase,
+                              ),
+                            ),
                           ),
-                        ),
+                        
                         Opacity(
                           opacity: 0.1,
                           child: Text(
@@ -194,7 +191,6 @@ class _GameTableScreenState extends State<GameTableScreen> {
                                   return;
                                 }
                                 
-                                // LOGICA CONFERMA IBRIDA
                                 if (game.currentPhase == GamePhase.pickingLosers && game.currentHandWinners.contains(p.id)) {
                                   _showHybridWarningDialog(context, p, game);
                                 } else {
@@ -222,6 +218,95 @@ class _GameTableScreenState extends State<GameTableScreen> {
             child: SafeArea(child: _buildBottomControls(context, game)),
           ),
         ],
+      ),
+    );
+  }
+
+  // --- NUOVA ISOLA DI STATO ---
+  Widget _buildStatusIsland(GamePhase phase) {
+    String text;
+    Color color;
+    IconData icon;
+
+    switch (phase) {
+      case GamePhase.dealerSelection:
+        text = "MANO IN CORSO";
+        color = Colors.blueGrey; // Neutro
+        icon = Icons.gamepad;
+        break;
+      case GamePhase.pickingWinners:
+        text = "SELEZIONA VINCITORI";
+        color = Colors.green;
+        icon = Icons.emoji_events;
+        break;
+      case GamePhase.pickingLosers:
+        text = "SELEZIONA BUSSATI";
+        color = Colors.redAccent;
+        icon = Icons.mood_bad;
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.9),
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.4),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          )
+        ],
+        border: Border.all(color: Colors.white24, width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: Colors.white, size: 18),
+          const SizedBox(width: 8),
+          Text(
+            text,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+              letterSpacing: 1.0,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTableBackground(double diameter, GamePhase phase) {
+    Color baseColor;
+    Color borderColor;
+
+    switch (phase) {
+      case GamePhase.dealerSelection:
+        baseColor = const Color(0xFF2E7D32); 
+        borderColor = const Color(0xFF4E342E);
+        break;
+      case GamePhase.pickingWinners:
+        baseColor = const Color(0xFF00695C); 
+        borderColor = const Color(0xFF004D40);
+        break;
+      case GamePhase.pickingLosers:
+        baseColor = const Color(0xFFB71C1C); 
+        borderColor = const Color(0xFF7F0000);
+        break;
+    }
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 500),
+      width: diameter,
+      height: diameter,
+      decoration: BoxDecoration(
+        color: baseColor,
+        shape: BoxShape.circle,
+        border: Border.all(color: borderColor, width: 8),
+        boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 25, spreadRadius: 5)],
       ),
     );
   }
@@ -280,7 +365,6 @@ class _GameTableScreenState extends State<GameTableScreen> {
             child: Text("Nella Bestia il piatto è diviso in 3 parti.\nSeleziona chi ha fatto più prese:", style: TextStyle(color: Colors.grey, fontSize: 13)),
           ),
           
-          // OPZIONE GRUPPO 1
           SimpleDialogOption(
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
             child: Container(
@@ -300,7 +384,6 @@ class _GameTableScreenState extends State<GameTableScreen> {
             },
           ),
 
-          // OPZIONE GRUPPO 2
           SimpleDialogOption(
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
             child: Container(
@@ -398,23 +481,12 @@ class _GameTableScreenState extends State<GameTableScreen> {
     double borderWidth = 2;
     double scale = 1.0;
     
-    // Palette di 12 colori distinti per garantire unicità fino a 12 giocatori
     final List<Color> distinctColors = [
-      Colors.red.shade700,
-      Colors.blue.shade700,
-      Colors.green.shade700,
-      Colors.orange.shade800,
-      Colors.purple.shade700,
-      Colors.teal.shade700,
-      Colors.pink.shade700,
-      Colors.blueGrey.shade700,
-      Colors.brown.shade700,
-      Colors.indigo.shade700,
-      Colors.lime.shade900,
-      Colors.cyan.shade800,
+      Colors.red.shade700, Colors.blue.shade700, Colors.green.shade700, Colors.orange.shade800,
+      Colors.purple.shade700, Colors.teal.shade700, Colors.pink.shade700, Colors.blueGrey.shade700,
+      Colors.brown.shade700, Colors.indigo.shade700, Colors.lime.shade900, Colors.cyan.shade800,
     ];
 
-    // Assegna il colore in base alla posizione (indice), non al nome
     final Color avatarColor = distinctColors[playerIndex % distinctColors.length];
 
     List<Color> groupColors = [Colors.greenAccent, Colors.cyanAccent, Colors.orangeAccent, Colors.purpleAccent];
@@ -442,27 +514,11 @@ class _GameTableScreenState extends State<GameTableScreen> {
             alignment: Alignment.topCenter,
             children: [
               Container(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle, 
-                  border: Border.all(color: borderColor, width: borderWidth), 
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 4, offset: const Offset(0, 2))]
-                ),
-                child: CircleAvatar(
-                  radius: 28, 
-                  backgroundColor: avatarColor, // Usa il nuovo colore unico
-                  foregroundColor: Colors.white, 
-                  child: const Icon(Icons.person, size: 34)
-                ),
+                decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: borderColor, width: borderWidth), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 4, offset: const Offset(0, 2))]),
+                child: CircleAvatar(radius: 28, backgroundColor: avatarColor, foregroundColor: Colors.white, child: const Icon(Icons.person, size: 34)),
               ),
               if (groupLabel != null)
-                Positioned(
-                  top: -12, 
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), 
-                    decoration: BoxDecoration(color: groupColor, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.white, width: 1.5), boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 2)]), 
-                    child: Text(groupLabel, style: const TextStyle(color: Colors.black87, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 0.5))
-                  )
-                ),
+                Positioned(top: -12, child: Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: groupColor, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.white, width: 1.5), boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 2)]), child: Text(groupLabel, style: const TextStyle(color: Colors.black87, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 0.5)))),
             ],
           ),
           const SizedBox(height: 6), 
@@ -474,7 +530,17 @@ class _GameTableScreenState extends State<GameTableScreen> {
               children: [
                 Text(player.name, textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 2),
-                Text("${player.score.toStringAsFixed(2)}€", textAlign: TextAlign.center, style: TextStyle(color: player.score < 0 ? Colors.redAccent : Colors.greenAccent, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+                Text(
+                  "${player.score.toStringAsFixed(2)}€", 
+                  textAlign: TextAlign.center, 
+                  style: TextStyle(
+                    color: player.score < 0 ? Colors.redAccent : Colors.greenAccent, 
+                    fontSize: 11, 
+                    fontWeight: FontWeight.w900, 
+                    letterSpacing: 0.5,
+                    fontFeatures: const [FontFeature.tabularFigures()], 
+                  ),
+                ),
               ],
             ),
           ),
@@ -554,15 +620,12 @@ class _GameTableScreenState extends State<GameTableScreen> {
     String btnText = game.currentPhase == GamePhase.pickingWinners ? "CONFERMA" : "FINE MANO";
     VoidCallback? onConfirm;
     
-    // GESTIONE CONFERMA VINCITORI (Logica Modificata)
     if (game.currentPhase == GamePhase.pickingWinners) {
       if (game.selectionGroups.isEmpty) {
         onConfirm = null;
       } else if (game.selectionGroups.length == 2) {
-        // Se 2 gruppi, chiediamo chi prende i 2/3
         onConfirm = () => _showTwoWinnersDialog(context, game);
       } else {
-        // Altrimenti divisione standard
         onConfirm = () => game.confirmWinners();
       }
     } else {
@@ -669,5 +732,65 @@ class _GameTableScreenState extends State<GameTableScreen> {
         ),
       ),
     );
+  }
+}
+
+class SelectionLinesPainter extends CustomPainter {
+  final List<Player> players;
+  final List<Set<String>> groups;
+  final double radius;
+  final GamePhase phase;
+
+  SelectionLinesPainter({
+    required this.players,
+    required this.groups,
+    required this.radius,
+    required this.phase,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (players.isEmpty) return;
+
+    final center = Offset(size.width / 2, size.height / 2);
+    
+    List<Color> groupColors = [Colors.greenAccent, Colors.cyanAccent, Colors.orangeAccent, Colors.purpleAccent];
+    if (phase == GamePhase.pickingLosers) {
+      groupColors = [Colors.redAccent, Colors.deepOrangeAccent, Colors.pinkAccent, Colors.amberAccent];
+    }
+
+    final Paint paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.0
+      ..strokeCap = StrokeCap.round;
+
+    for (int g = 0; g < groups.length; g++) {
+      final group = groups[g];
+      if (group.length < 2) continue;
+
+      paint.color = groupColors[g % groupColors.length].withOpacity(0.6);
+      
+      List<Offset> points = [];
+      for (String id in group) {
+        int index = players.indexWhere((p) => p.id == id);
+        if (index != -1) {
+          final double angle = (2 * pi * index) / players.length - (pi / 2);
+          final double x = center.dx + radius * cos(angle);
+          final double y = center.dy + radius * sin(angle);
+          points.add(Offset(x, y));
+        }
+      }
+
+      for (int i = 0; i < points.length; i++) {
+        for (int j = i + 1; j < points.length; j++) {
+           canvas.drawLine(points[i], points[j], paint);
+        }
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant SelectionLinesPainter oldDelegate) {
+    return oldDelegate.groups != groups || oldDelegate.players != players;
   }
 }
