@@ -413,12 +413,11 @@ button {
 }
 ''';
 
-  static const String appJs = '''
+  static const String appJs = r'''
 let ws = null;
 let reconnectAttempts = 0;
 const maxReconnectAttempts = 5;
 
-// Connetti al WebSocket
 function connectWebSocket() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = protocol + '//' + window.location.host + '/api/ws';
@@ -448,7 +447,6 @@ function connectWebSocket() {
             console.log('WebSocket disconnesso');
             updateStatus(false);
             
-            // Riconnessione automatica
             if (reconnectAttempts < maxReconnectAttempts) {
                 reconnectAttempts++;
                 setTimeout(connectWebSocket, 2000 * reconnectAttempts);
@@ -460,7 +458,6 @@ function connectWebSocket() {
     }
 }
 
-// Aggiorna stato connessione
 function updateStatus(connected) {
     const statusEl = document.getElementById('status');
     const statusText = document.getElementById('statusText');
@@ -474,18 +471,11 @@ function updateStatus(connected) {
     }
 }
 
-// Aggiorna lo stato del gioco
 function updateGameState(data) {
-    // Aggiorna piatto
     document.getElementById('pot').textContent = data.currentPot.toFixed(2) + '€';
-    
-    // Aggiorna fase
     document.getElementById('phase').textContent = data.currentPhase;
-    
-    // Aggiorna dealer
     document.getElementById('dealer').textContent = data.dealerName || '-';
     
-    // Aggiorna tabella giocatori
     const tbody = document.getElementById('scoreBody');
     
     if (!data.players || data.players.length === 0) {
@@ -493,7 +483,6 @@ function updateGameState(data) {
         return;
     }
     
-    // Ordina per punteggio decrescente
     const sortedPlayers = [...data.players].sort((a, b) => b.score - a.score);
     
     tbody.innerHTML = sortedPlayers.map(player => {
@@ -519,14 +508,12 @@ function updateGameState(data) {
     }).join('');
 }
 
-// Escape HTML per sicurezza
 function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
 }
 
-// Refresh manuale dati
 async function refreshData() {
     try {
         const response = await fetch('/api/game-state');
@@ -537,7 +524,6 @@ async function refreshData() {
     }
 }
 
-// Mostra storico
 async function showHistory() {
     const modal = document.getElementById('historyModal');
     const body = document.getElementById('historyBody');
@@ -574,19 +560,16 @@ async function showHistory() {
     }
 }
 
-// Chiudi storico
 function closeHistory() {
     document.getElementById('historyModal').classList.remove('active');
 }
 
-// Chiudi modale cliccando fuori
 document.getElementById('historyModal').addEventListener('click', (e) => {
     if (e.target.id === 'historyModal') {
         closeHistory();
     }
 });
 
-// Inizializza al caricamento pagina
 document.addEventListener('DOMContentLoaded', () => {
     connectWebSocket();
     refreshData();
