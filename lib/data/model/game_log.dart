@@ -22,6 +22,29 @@ class GameLog {
     };
   }
 
+  // Metodo per JSON (server web)
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'message': message,
+      'timestamp': timestamp.toIso8601String(),
+      'type': _logTypeToString(type),
+    };
+  }
+
+  String _logTypeToString(LogType type) {
+    switch (type) {
+      case LogType.info:
+        return 'info';
+      case LogType.gain:
+        return 'gain';
+      case LogType.loss:
+        return 'loss';
+      case LogType.pass:
+        return 'pass';
+    }
+  }
+
   factory GameLog.fromMap(Map<String, dynamic> map) {
     return GameLog(
       id: map['id'],
