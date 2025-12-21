@@ -19,7 +19,6 @@ class Player {
     this.isActive = true,
   }) : id = id ?? const Uuid().v4();
 
-  // COPIA PROFONDA (Per l'Undo)
   Player copy() {
     return Player(
       id: id,
@@ -29,13 +28,22 @@ class Player {
     );
   }
 
-  // CORREZIONE QUI: toMap non deve avere argomenti
   Map<String, dynamic> toMap() {
     return {
       'id': id,
       'name': name,
       'score': score,
       'is_active': isActive ? 1 : 0,
+    };
+  }
+
+  // Metodo per JSON (server web)
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'score': score,
+      'isActive': isActive,
     };
   }
 
