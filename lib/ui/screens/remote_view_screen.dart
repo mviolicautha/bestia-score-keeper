@@ -25,6 +25,7 @@ class _RemoteViewScreenState extends State<RemoteViewScreen> {
   }
 
   Future<void> _startServer() async {
+    if (!mounted) return;
     setState(() => _isStarting = true);
 
     try {
@@ -34,6 +35,7 @@ class _RemoteViewScreenState extends State<RemoteViewScreen> {
       final url = await _server!.start();
       
       if (url != null) {
+        if (!mounted) return;
         setState(() {
           _serverUrl = url;
           _isRunning = true;
@@ -67,28 +69,34 @@ class _RemoteViewScreenState extends State<RemoteViewScreen> {
         );
       }
     } finally {
-      setState(() => _isStarting = false);
+      if (mounted) {
+        setState(() => _isStarting = false);
+      }
     }
   }
 
   Future<void> _stopServer() async {
     await _server?.stop();
-    setState(() {
-      _server = null;
-      _serverUrl = null;
-      _isRunning = false;
-    });
+    if (mounted) {
+      setState(() {
+        _server = null;
+        _serverUrl = null;
+        _isRunning = false;
+      });
+    }
   }
 
   void _copyToClipboard() {
     if (_serverUrl != null) {
       Clipboard.setData(ClipboardData(text: _serverUrl!));
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('URL copiato negli appunti!'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('URL copiato negli appunti!'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
     }
   }
 
