@@ -8,7 +8,7 @@ export const route = { id: "", pushed: [] as string[] };
 
 export const navigationMock = {
   useParams: () => ({ id: route.id }),
-  useRouter: () => ({ push: (href: string) => route.pushed.push(href) }),
+  useRouter: () => ({ push: (href: string) => route.pushed.push(href), replace: (href: string) => route.pushed.push(href) }),
 };
 
 export function LinkMock({ href, children, ...rest }: AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) {

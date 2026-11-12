@@ -9,6 +9,8 @@ import { formatCents, replay, type GameState } from "@/engine";
 import { getRepository, type GameMeta } from "@/lib/repository";
 import { Button, Sheet } from "@/components/Sheet";
 import { ConfirmDialog, type ConfirmRequest } from "@/components/ui";
+import { isSupabaseConfigured } from "@/lib/supabase";
+import { normalizeCode } from "@/lib/online";
 
 const BET_STEP = 30;
 const INSTALL_HINT_KEY = "bestia:install-hint-dismissed";
@@ -108,6 +110,8 @@ export default function Home() {
         <Plus size={22} /> Nuova partita
       </Button>
 
+      {isSupabaseConfigured && <JoinByCode />}
+
       {games?.length === 0 && (
         <p className="mt-10 text-center text-white/45">
           Nessuna partita ancora.
@@ -120,7 +124,9 @@ export default function Home() {
       {ended.length > 0 && <Section title="Terminate" games={ended} onDelete={askDelete} />}
 
       <p className="mt-10 text-center text-xs text-white/35">
-        Le partite sono salvate su questo dispositivo. Account, inviti e storico condiviso arriveranno con il backend.
+        {isSupabaseConfigured
+          ? "Qui ci sono le partite che hai creato tu (sei il master). Per seguire quella di un altro, inquadra il suo QR o inserisci il codice."
+          : "Le partite sono salvate su questo dispositivo. Account, inviti e storico condiviso arriveranno con il backend."}
       </p>
 
       <Sheet open={creating} onClose={() => setCreating(false)} title="Nuova partita">
@@ -209,5 +215,38 @@ function Section({ title, games, onDelete }: { title: string; games: GameCard[];
         })}
       </ul>
     </section>
+  );
+}
+
+/** Unirsi alla partita di un altro dettando il codice (in alternativa al QR). */
+function JoinByCode() {
+  const router = useRouter();
+  const [code, setCode] = useState("");
+  const clean = normalizeCode(code);
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (clean.length >= 4) router.push(`/g/${clean}`);
+      }}
+      className="mt-3 flex items-center gap-2 rounded-2xl bg-night-800 p-2 pl-4 ring-1 ring-white/5"
+    >
+      <label htmlFor="join-code" className="shrink-0 text-sm text-white/60">
+        Hai un codice?
+      </label>
+      <input
+        id="join-code"
+        value={code}
+        onChange={(e) => setCode(e.target.value)}
+        placeholder="ABC12"
+        maxLength={8}
+        autoCapitalize="characters"
+        autoComplete="off"
+        className="min-w-0 flex-1 rounded-xl bg-night-900 px-3 py-2 font-mono uppercase tracking-[0.3em] outline-none ring-1 ring-white/10 focus:ring-blue-500"
+      />
+      <Button type="submit" variant="secondary" className="px-4 py-2 text-sm" disabled={clean.length < 4}>
+        Entra
+      </Button>
+    </form>
   );
 }
