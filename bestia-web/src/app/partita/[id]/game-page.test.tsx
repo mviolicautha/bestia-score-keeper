@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { GameEvent } from "@/engine";
 import { getRepository } from "@/lib/repository";
+import { resetCharacterCache } from "@/lib/avatar/store";
 import { route } from "@/test/setup-next";
 import GamePage from "./page";
 
@@ -36,6 +37,7 @@ const eventTypes = async (id: string) => (await getRepository().loadEvents(id)).
 
 beforeEach(() => {
   window.localStorage.clear();
+  resetCharacterCache();
 });
 afterEach(() => cleanup());
 
@@ -99,6 +101,34 @@ describe("schermata del master", () => {
     expect(pot()).toBe("0,60 €");
     expect(card("Bruno").getAttribute("aria-label")).toContain("mazziere");
     expect((await eventTypes(id)).at(-1)).toBe("hand_played");
+  });
+
+  it("vista tavolo: i posti seguono il giro, si segna una mano toccandoli e la scelta resta salvata", async () => {
+    const { user } = await openGame();
+    await user.click(screen.getByRole("button", { name: "Mostra il tavolo" }));
+    const table = screen.getByRole("group", { name: "Tavolo" });
+    const seats = within(table).getAllByRole("button");
+    expect(seats.map((b) => b.getAttribute("aria-label")!.split(",")[0])).toEqual(NAMES);
+    expect(within(table).getByLabelText("Piatto 0,30 €")).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Gioca mano" }));
+    await user.click(card("Carla"));
+    expect(card("Carla").getAttribute("aria-pressed")).toBe("true");
+    expect(within(card("Carla")).getByText("3/3")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Avanti" }));
+    await user.click(card("Dario"));
+    await user.click(screen.getByRole("button", { name: "Fine mano" }));
+    await screen.findByText(/Mano registrata/);
+    expect(balanceOf("Carla")).toBe("+0,30 €");
+    expect(card("Bruno").getAttribute("aria-label")).toContain("mazziere");
+    expect(within(screen.getByRole("group", { name: "Tavolo" })).getByLabelText("Piatto 0,60 €")).toBeTruthy();
+
+    // riaprendo la partita resta sul tavolo; si torna alla griglia con lo stesso pulsante
+    cleanup();
+    render(<GamePage />);
+    expect(await screen.findByRole("group", { name: "Tavolo" })).toBeTruthy();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Mostra la griglia" }));
+    expect(screen.queryByRole("group", { name: "Tavolo" })).toBeNull();
   });
 
   it("società: due giocatori uniti si dividono la vincita", async () => {
@@ -213,5 +243,58 @@ describe("schermata del master", () => {
 
     await user.click(screen.getByRole("button", { name: /Riapri la partita/ }));
     expect(await screen.findByRole("button", { name: "Gioca mano" })).toBeTruthy();
+  });
+
+  it("crea il personaggio di un giocatore e lo mostra al posto dell'iniziale, anche nelle altre partite", async () => {
+    const { user } = await openGame();
+    expect(card("Anna").querySelector("img")).toBeNull();
+
+    await user.click(card("Anna"));
+    await user.click(screen.getByRole("button", { name: "Crea personaggio" }));
+    const editor = screen.getByRole("dialog", { name: "Personaggio di Anna" });
+    await user.click(within(editor).getByRole("tab", { name: "Capelli" }));
+    await user.click(within(editor).getByRole("option", { name: "Corti" }));
+    await user.click(within(editor).getByRole("radio", { name: "Biondo" }));
+    await user.click(within(editor).getByRole("tab", { name: "Occhiali" }));
+    await user.click(within(editor).getByRole("option", { name: "Da sole" }));
+    await user.click(within(editor).getByRole("button", { name: "Salva" }));
+
+    expect(await screen.findByText("Personaggio di Anna salvato")).toBeTruthy();
+    const hair = card("Anna").querySelector('img[data-layer="hair_short"]');
+    expect(hair?.getAttribute("src")).toBe("/avatars/hair/hair_short/biondo.webp");
+    expect(card("Anna").querySelector('img[data-layer="glasses_sun_black"]')).not.toBeNull();
+    expect(card("Bruno").querySelector("img")).toBeNull();
+
+    // Salvato per nome: in un'altra partita Anna ha già il suo personaggio.
+    cleanup();
+    await openGame(["Anna", "Zeno"]);
+    expect(card("Anna").querySelector('img[data-layer="hair_short"]')).not.toBeNull();
+    await userEvent.setup().click(card("Anna"));
+    expect(screen.getByRole("button", { name: "Modifica personaggio" })).toBeTruthy();
+  });
+
+  it("chi arriva a partita iniziata sceglie il posto nel giro e il mazzo passa da lui al suo turno", async () => {
+    const { user } = await openGame();
+    const order = () => screen.getAllByRole("button", { name: /, saldo/ }).map((b) => b.getAttribute("aria-label")!.split(",")[0]);
+
+    await user.click(screen.getByRole("button", { name: "Aggiungi giocatore" }));
+    expect(screen.getByRole("radio", { name: /Elena/ })).toHaveAttribute("aria-checked", "true"); // di base dopo l'ultimo
+    await user.click(screen.getByRole("radio", { name: /Anna/ }));
+    expect(screen.getByText(/siede tra/).textContent).toContain("Anna e Bruno");
+    await user.type(screen.getByRole("textbox", { name: "Nome del giocatore" }), "Fabio{Enter}");
+    await waitFor(() => expect(order()).toEqual(["Anna", "Fabio", "Bruno", "Carla", "Dario", "Elena"]));
+    // il prossimo inserito si siede dopo l'ultimo arrivato
+    expect(screen.getByRole("radio", { name: /Fabio/ })).toHaveAttribute("aria-checked", "true");
+    await user.click(screen.getByRole("button", { name: "Fatto" }));
+
+    await user.click(screen.getByRole("button", { name: /^Passa/ }));
+    await waitFor(() => expect(card("Fabio").getAttribute("aria-label")).toContain("mazziere"));
+  });
+
+  it("a tavolo pieno non si può aggiungere nessuno", async () => {
+    const { user } = await openGame(["A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9", "A10"]);
+    await user.click(screen.getByRole("button", { name: "Aggiungi giocatore" }));
+    expect(screen.getByText(/Tavolo pieno \(10\/10\)/)).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: "Nome del giocatore" })).toBeDisabled();
   });
 });

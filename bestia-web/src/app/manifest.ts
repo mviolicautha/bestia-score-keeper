@@ -13,8 +13,10 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: "#121826",
     theme_color: "#121826",
     icons: [
-      { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
-      { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+      { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+      // Android ritaglia le icone (cerchio, goccia...): questa ha margine, così cornice e scritta restano intere.
+      { src: "/icons/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
     ],
   };
 }

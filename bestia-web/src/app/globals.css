@@ -16,6 +16,17 @@
   --color-loss: #ff6b6b;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --animate-seat-flash: seat-flash 3.2s ease-out forwards;
+}
+
+/* Variazione dell'ultima mano sopra un posto del tavolo: compare, resta, svanisce. */
+@keyframes seat-flash {
+  /* solo verticale: l'allineamento orizzontale lo dà la classe -translate-x-1/2 */
+  0% { opacity: 0; transform: translateY(40%) scale(0.7); }
+  12% { opacity: 1; transform: translateY(0) scale(1.08); }
+  20% { transform: translateY(0) scale(1); }
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-30%); }
 }
 
 html,

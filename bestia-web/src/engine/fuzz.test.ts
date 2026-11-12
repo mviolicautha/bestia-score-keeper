@@ -39,10 +39,12 @@ function randomEvent(s: GameState, rnd: (n: number) => number, nextId: () => str
 
   if (isPotClean(s)) {
     const r = rnd(10);
-    if (r === 0 && active.length < s.rules.maxPlayers) return { type: "player_added", playerId: nextId(), name: `G${s.players.length}` };
+    // A volte chi arriva sceglie dove sedersi nel giro del tavolo.
+    const seat = () => (active.length > 0 && rnd(2) === 0 ? { seatAfter: active[rnd(active.length)].id } : {});
+    if (r === 0 && active.length < s.rules.maxPlayers) return { type: "player_added", playerId: nextId(), name: `G${s.players.length}`, ...seat() };
     if (r === 1 && inactive.length > 0 && active.length < s.rules.maxPlayers) {
       const p = inactive[rnd(inactive.length)];
-      return { type: "player_added", playerId: p.id, name: p.name };
+      return { type: "player_added", playerId: p.id, name: p.name, ...seat() };
     }
     if (r === 2 && active.length > s.rules.minPlayers) return { type: "player_left", playerId: active[rnd(active.length)].id };
     if (r === 3) return { type: "bet_changed", baseBetCents: 30 * (1 + rnd(4)) };

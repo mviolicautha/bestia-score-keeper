@@ -4,14 +4,17 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useState } from "react";
 import {
+  Armchair,
   ArrowLeft,
   ChevronLeft,
   Coins,
   Flag,
   History,
+  LayoutGrid,
   Link2,
   LogOut,
   MoreHorizontal,
+  Shirt,
   Tv,
   Undo2,
   UserPlus,
@@ -21,6 +24,7 @@ import {
   canChangeTable,
   canEnd,
   canPlay,
+  colorIndex,
   formatCents,
   handPayouts,
   type GameState,
@@ -35,13 +39,18 @@ import { HistoryList } from "@/components/HistoryList";
 import { Button, Sheet } from "@/components/Sheet";
 import { Results } from "@/components/Results";
 import { Avatar, ConfirmDialog, haptic, Toast, type ConfirmRequest, type ToastMessage } from "@/components/ui";
+import { CharacterEditor } from "@/components/CharacterEditor";
+import { useCharacter } from "@/lib/avatar/store";
+import { usePref } from "@/lib/prefs";
+import { isSupabaseConfigured } from "@/lib/supabase";
+import { Table } from "@/components/Table";
 
 type HandPhase =
   | { kind: "idle" }
   | { kind: "winners"; groups: PlayerId[][]; major: number | null }
   | { kind: "losers"; winners: WinnerGroup[]; groups: PlayerId[][] };
 
-type SheetKind = "add" | "bet" | "history" | "end" | "tv" | "menu" | { player: PlayerId } | null;
+type SheetKind = "add" | "bet" | "history" | "end" | "tv" | "menu" | { player: PlayerId } | { character: PlayerId } | null;
 
 // Colori dei gruppi selezionati (vincitori: verde/azzurro/ambra; bestie: rossi).
 const WIN = [
@@ -84,6 +93,7 @@ export default function GamePage() {
   const [sheet, setSheet] = useState<SheetKind>(null);
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const [confirm, setConfirm] = useState<ConfirmRequest | null>(null);
+  const [view, setView] = usePref("vista-giocatori", "grid", ["grid", "table"] as const);
 
   const notify = useCallback((text: string, kind: ToastMessage["kind"] = "info") => {
     setToast({ text, kind, id: Date.now() });
@@ -126,7 +136,7 @@ export default function GamePage() {
 
   const players = activePlayers(state);
   const inactive = state.players.filter((p) => !p.active);
-  const seatOf = (pid: PlayerId) => state.players.findIndex((p) => p.id === pid);
+  const seatOf = (pid: PlayerId) => colorIndex(state, pid);
   const name = (pid: PlayerId) => state.players.find((p) => p.id === pid)?.name ?? "?";
   const groupNames = (g: PlayerId[]) => g.map(name).join(" & ");
 
@@ -186,6 +196,9 @@ export default function GamePage() {
     return null;
   }
 
+  const cardLabel = (p: PlayerState) =>
+    `${p.name}${p.id === state.dealerId ? ", mazziere" : ""}, saldo ${formatCents(p.balanceCents, { signed: true })}${badgeFor(p.id) ? ", selezionato" : ""}`;
+
   const lastGroup = phase.kind !== "idle" && phase.groups.length > 0 ? phase.groups[phase.groups.length - 1] : null;
 
   return (
@@ -198,6 +211,12 @@ export default function GamePage() {
         <h1 className="min-w-0 flex-1 truncate text-sm font-semibold text-white/70">{game.meta?.title ?? "Partita"}</h1>
         <IconButton label="Annulla ultima azione" disabled={!game.canUndo || phase.kind !== "idle"} onClick={undo}>
           <Undo2 size={21} className="text-amber-300" />
+        </IconButton>
+        <IconButton
+          label={view === "table" ? "Mostra la griglia" : "Mostra il tavolo"}
+          onClick={() => setView(view === "table" ? "grid" : "table")}
+        >
+          {view === "table" ? <LayoutGrid size={21} /> : <Armchair size={21} />}
         </IconButton>
         <IconButton label="Cronologia" onClick={() => setSheet("history")}>
           <History size={21} />
@@ -212,21 +231,23 @@ export default function GamePage() {
 
       {/* Piatto */}
       <section className="px-3 pt-1">
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-felt-600 to-felt-700 px-5 py-4 shadow-lg ring-1 ring-black/20">
-          <span className="pointer-events-none absolute -right-3 -top-6 select-none text-[7rem] leading-none text-black/10" aria-hidden>
-            ♠
-          </span>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-white/60">Piatto</p>
-          <p className="tabular text-5xl font-black leading-tight text-gold-400 drop-shadow">{formatCents(state.potCents)}</p>
-          <p className="mt-0.5 text-xs text-white/70">
-            Messa {formatCents(state.baseBetCents)} · Mano {state.handsPlayed + 1}
-            {state.dealerId && (
-              <>
-                {" "}
-                · Fa le carte <strong className="text-white">{name(state.dealerId)}</strong>
-              </>
-            )}
-          </p>
+        <div className={view === "table" ? "hidden" : undefined}>
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-felt-600 to-felt-700 px-5 py-4 shadow-lg ring-1 ring-black/20">
+            <span className="pointer-events-none absolute -right-3 -top-6 select-none text-[7rem] leading-none text-black/10" aria-hidden>
+              ♠
+            </span>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-white/60">Piatto</p>
+            <p className="tabular text-5xl font-black leading-tight text-gold-400 drop-shadow">{formatCents(state.potCents)}</p>
+            <p className="mt-0.5 text-xs text-white/70">
+              Messa {formatCents(state.baseBetCents)} · Mano {state.handsPlayed + 1}
+              {state.dealerId && (
+                <>
+                  {" "}
+                  · Fa le carte <strong className="text-white">{name(state.dealerId)}</strong>
+                </>
+              )}
+            </p>
+          </div>
         </div>
         {phase.kind !== "idle" && <Stepper step={phase.kind === "winners" ? 1 : 2} />}
       </section>
@@ -236,52 +257,66 @@ export default function GamePage() {
         {players.length === 0 && (
           <div className="rounded-3xl border border-dashed border-white/15 px-6 py-10 text-center text-white/55">
             <UserPlus className="mx-auto mb-3 text-white/40" />
-            Aggiungi i giocatori in ordine di posto.
+            Aggiungi i giocatori in ordine di posto, in senso orario.
             <br />
             Il primo fa le carte e versa la messa.
           </div>
         )}
-        <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-          {players.map((p) => {
-            const badge = badgeFor(p.id);
-            const isDealer = p.id === state.dealerId;
-            const delta = preview[p.id];
-            return (
-              <li key={p.id}>
-                <button
-                  onClick={() => onPlayerTap(p)}
-                  aria-label={`${p.name}${isDealer ? ", mazziere" : ""}, saldo ${formatCents(p.balanceCents, { signed: true })}${badge ? ", selezionato" : ""}`}
-                  aria-pressed={phase.kind !== "idle" ? !!badge : undefined}
-                  className={`relative flex h-full w-full items-center gap-3 rounded-2xl p-3 text-left ring-2 transition active:scale-[0.97] ${
-                    badge ? `${badge.ring} bg-night-700` : "bg-night-800 ring-white/5"
-                  }`}
-                >
-                  <Avatar name={p.name} seat={seatOf(p.id)} dealer={isDealer} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-bold">{p.name}</span>
-                    <span className={`tabular block text-base font-black ${amountColor(p.balanceCents)}`}>
-                      {formatCents(p.balanceCents, { signed: true })}
+        {view === "table" && players.length > 0 && (
+          <Table
+            state={state}
+            onSeatTap={onPlayerTap}
+            badgeFor={badgeFor}
+            preview={preview}
+            selecting={phase.kind !== "idle"}
+            seatLabel={cardLabel}
+          />
+        )}
+        {view === "grid" && (
+          <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+            {players.map((p) => {
+              const badge = badgeFor(p.id);
+              const isDealer = p.id === state.dealerId;
+              const delta = preview[p.id];
+              return (
+                <li key={p.id}>
+                  <button
+                    onClick={() => onPlayerTap(p)}
+                    aria-label={cardLabel(p)}
+                    aria-pressed={phase.kind !== "idle" ? !!badge : undefined}
+                    className={`relative flex h-full w-full items-center gap-3 rounded-2xl p-3 text-left ring-2 transition active:scale-[0.97] ${
+                      badge ? `${badge.ring} bg-night-700` : "bg-night-800 ring-white/5"
+                    }`}
+                  >
+                    <Avatar name={p.name} seat={seatOf(p.id)} dealer={isDealer} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-bold">{p.name}</span>
+                      <span className={`tabular block text-base font-black ${amountColor(p.balanceCents)}`}>
+                        {formatCents(p.balanceCents, { signed: true })}
+                      </span>
+                      {delta !== undefined && delta !== 0 && (
+                        <span
+                          className={`tabular mt-0.5 inline-block rounded-md px-1.5 text-xs font-bold ${
+                            delta > 0 ? "bg-emerald-400/15 text-emerald-300" : "bg-red-400/15 text-red-300"
+                          }`}
+                        >
+                          {formatCents(delta, { signed: true })}
+                        </span>
+                      )}
                     </span>
-                    {delta !== undefined && delta !== 0 && (
+                    {badge && (
                       <span
-                        className={`tabular mt-0.5 inline-block rounded-md px-1.5 text-xs font-bold ${
-                          delta > 0 ? "bg-emerald-400/15 text-emerald-300" : "bg-red-400/15 text-red-300"
-                        }`}
+                        className={`absolute -right-1.5 -top-1.5 rounded-full px-1.5 py-0.5 text-[11px] font-black text-black ring-2 ring-night-900 ${badge.dot}`}
                       >
-                        {formatCents(delta, { signed: true })}
+                        {badge.label}
                       </span>
                     )}
-                  </span>
-                  {badge && (
-                    <span className={`absolute -right-1.5 -top-1.5 rounded-full px-1.5 py-0.5 text-[11px] font-black text-black ring-2 ring-night-900 ${badge.dot}`}>
-                      {badge.label}
-                    </span>
-                  )}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
         {inactive.length > 0 && (
           <div className="mt-5">
             <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-white/35">Fuori dal tavolo</p>
@@ -290,7 +325,9 @@ export default function GamePage() {
                 <li key={p.id} className="flex items-center gap-2 rounded-full bg-night-800/60 py-1 pl-1 pr-3 text-sm text-white/55">
                   <Avatar name={p.name} seat={seatOf(p.id)} size="sm" />
                   {p.name}
-                  <span className={`tabular font-bold ${amountColor(p.balanceCents)}`}>{formatCents(p.balanceCents, { signed: true })}</span>
+                  <span className={`tabular font-bold ${amountColor(p.balanceCents)}`}>
+                    {formatCents(p.balanceCents, { signed: true })}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -447,13 +484,21 @@ export default function GamePage() {
       <Sheet open={sheet === "history"} onClose={() => setSheet(null)} title="Cronologia">
         <HistoryList state={state} history={game.history} times={game.events.map((e) => e.at)} />
       </Sheet>
-      {typeof sheet === "object" && sheet !== null && (
+      {typeof sheet === "object" && sheet !== null && "player" in sheet && (
         <PlayerSheet
           player={state.players.find((p) => p.id === sheet.player)!}
           seat={seatOf(sheet.player)}
           state={state}
           onClose={() => setSheet(null)}
+          onEditCharacter={() => setSheet({ character: sheet.player })}
           run={run}
+        />
+      )}
+      {typeof sheet === "object" && sheet !== null && "character" in sheet && (
+        <CharacterEditor
+          name={name(sheet.character)}
+          onClose={() => setSheet(null)}
+          onSaved={() => notify(`Personaggio di ${name(sheet.character)} salvato`, "success")}
         />
       )}
     </div>
@@ -485,7 +530,9 @@ function IconButton({ label, children, ...props }: React.ButtonHTMLAttributes<HT
 function Stepper({ step }: { step: 1 | 2 }) {
   const item = (n: 1 | 2, label: string, color: string) => (
     <li className={`flex items-center gap-2 ${step === n ? "text-white" : "text-white/35"}`}>
-      <span className={`grid h-6 w-6 place-items-center rounded-full text-xs font-black ${step === n ? `${color} text-black` : "bg-night-700"}`}>
+      <span
+        className={`grid h-6 w-6 place-items-center rounded-full text-xs font-black ${step === n ? `${color} text-black` : "bg-night-700"}`}
+      >
         {n}
       </span>
       <span className="text-sm font-bold">{label}</span>
@@ -527,7 +574,12 @@ function PhaseControls(props: {
       >
         <Link2 size={17} /> Società
       </button>
-      <Button variant={props.confirmVariant} className="flex-1 whitespace-nowrap" disabled={props.confirmDisabled} onClick={props.onConfirm}>
+      <Button
+        variant={props.confirmVariant}
+        className="flex-1 whitespace-nowrap"
+        disabled={props.confirmDisabled}
+        onClick={props.onConfirm}
+      >
         {props.confirmLabel}
       </Button>
     </div>
@@ -552,7 +604,9 @@ function MenuSheet({
         disabled={disabled}
         className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left hover:bg-white/5 disabled:opacity-40 disabled:hover:bg-transparent"
       >
-        <span className={`grid h-10 w-10 place-items-center rounded-full ${danger ? "bg-red-500/15 text-red-300" : "bg-night-700 text-white/80"}`}>
+        <span
+          className={`grid h-10 w-10 place-items-center rounded-full ${danger ? "bg-red-500/15 text-red-300" : "bg-night-700 text-white/80"}`}
+        >
           {icon}
         </span>
         <span>
@@ -584,18 +638,68 @@ function MenuSheet({
 function AddPlayerSheet({ onClose, state, run }: { onClose: () => void; state: GameState; run: Run }) {
   const [value, setValue] = useState("");
   const [added, setAdded] = useState<string[]>([]);
+  const active = activePlayers(state);
   const inactive = state.players.filter((p) => !p.active);
+  const full = active.length >= state.rules.maxPlayers;
+  // Posto nel giro (senso orario): di base dopo l'ultimo; dopo ogni aggiunta avanza sul nuovo arrivato.
+  const [after, setAfter] = useState<PlayerId | null>(active.at(-1)?.id ?? null);
+  const seatAfter = after && active.some((p) => p.id === after) ? after : active.at(-1)?.id;
+
+  async function join(playerId: PlayerId, name: string) {
+    // Un nuovo arrivato dopo l'ultimo del giro si siede in fondo: non serve indicarlo (la cronologia resta pulita).
+    // Chi rientra invece lo indica sempre, altrimenti riprenderebbe il vecchio posto.
+    const rejoining = state.players.some((p) => p.id === playerId);
+    const explicit = seatAfter && (rejoining || seatAfter !== active.at(-1)?.id);
+    const ok = await run({ type: "player_added", playerId, name, ...(explicit ? { seatAfter } : {}) });
+    if (ok) {
+      setAdded((a) => [...a, name]);
+      setAfter(playerId);
+    }
+    return ok;
+  }
 
   async function add() {
-    const n = value.trim();
-    if (await run({ type: "player_added", playerId: newPlayerId(), name: n })) {
-      setAdded((a) => [...a, n]);
-      setValue("");
-    }
+    if (await join(newPlayerId(), value.trim())) setValue("");
   }
 
   return (
     <Sheet open onClose={onClose} title="Aggiungi giocatori">
+      {full && (
+        <p className="mb-3 rounded-xl bg-amber-500/15 p-3 text-sm text-amber-200">
+          Tavolo pieno ({active.length}/{state.rules.maxPlayers}): qualcuno deve uscire prima che un altro possa sedersi.
+        </p>
+      )}
+      {active.length > 0 && !full && (
+        <div className="mb-4">
+          <p className="mb-2 text-sm text-white/60">Si siede dopo</p>
+          <div className="-mx-1 flex flex-wrap gap-1.5" role="radiogroup" aria-label="Posto al tavolo: si siede dopo">
+            {active.map((p) => (
+              <button
+                key={p.id}
+                role="radio"
+                aria-checked={seatAfter === p.id}
+                onClick={() => setAfter(p.id)}
+                className={`flex items-center gap-1.5 rounded-full py-1 pl-1 pr-3 text-sm font-semibold ring-2 transition ${
+                  seatAfter === p.id ? "bg-night-600 text-white ring-gold-400" : "bg-night-900 text-white/70 ring-white/5"
+                }`}
+              >
+                <Avatar name={p.name} seat={p.joinOrder} size="sm" />
+                {p.name}
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-white/45">
+            Il mazzo gira in senso orario nell&apos;ordine dei posti
+            {seatAfter && active.length > 1 && (
+              <>
+                : il nuovo arrivato siede tra <strong className="text-white/70">{active.find((p) => p.id === seatAfter)?.name}</strong> e{" "}
+                <strong className="text-white/70">{active[(active.findIndex((p) => p.id === seatAfter) + 1) % active.length].name}</strong>
+              </>
+            )}
+            .
+          </p>
+        </div>
+      )}
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -605,6 +709,7 @@ function AddPlayerSheet({ onClose, state, run }: { onClose: () => void; state: G
       >
         <input
           autoFocus
+          disabled={full}
           value={value}
           maxLength={20}
           enterKeyHint="next"
@@ -614,20 +719,23 @@ function AddPlayerSheet({ onClose, state, run }: { onClose: () => void; state: G
           aria-label="Nome del giocatore"
           className="min-w-0 flex-1 rounded-xl bg-night-900 px-4 py-3 outline-none ring-1 ring-white/10 focus:ring-blue-500"
         />
-        <Button type="submit" disabled={!value.trim()}>
+        <Button type="submit" disabled={!value.trim() || full}>
           Aggiungi
         </Button>
       </form>
       <p className="mt-3 text-xs text-white/45">
-        In ordine di posto: il mazzo gira in quest&apos;ordine. Premi Invio per aggiungere il prossimo.
+        {active.length === 0
+          ? "Inserisci i giocatori in ordine di posto, in senso orario: il primo fa le carte. "
+          : "Premi Invio per aggiungere il prossimo: si siederà dopo quello appena aggiunto. "}
+        Poi tocca un giocatore per creargli il personaggio.
       </p>
       {added.length > 0 && <p className="mt-2 text-sm text-emerald-300">Aggiunti: {added.join(", ")}</p>}
-      {inactive.length > 0 && (
+      {inactive.length > 0 && !full && (
         <>
-          <p className="mb-2 mt-5 text-sm text-white/60">Rientra al tavolo</p>
+          <p className="mb-2 mt-5 text-sm text-white/60">Rientra al tavolo (nel posto scelto sopra)</p>
           <div className="flex flex-wrap gap-2">
             {inactive.map((p) => (
-              <Button key={p.id} variant="secondary" className="py-2" onClick={() => run({ type: "player_added", playerId: p.id, name: p.name })}>
+              <Button key={p.id} variant="secondary" className="py-2" onClick={() => join(p.id, p.name)}>
                 {p.name}
               </Button>
             ))}
@@ -652,7 +760,13 @@ function BetSheet({ onClose, state, run }: { onClose: () => void; state: GameSta
         </p>
       )}
       <div className="flex items-center justify-between rounded-xl bg-night-900 p-2 ring-1 ring-white/10">
-        <Button variant="secondary" className="w-14" disabled={!allowed || bet <= 30} onClick={() => setBet(bet - 30)} aria-label="Diminuisci">
+        <Button
+          variant="secondary"
+          className="w-14"
+          disabled={!allowed || bet <= 30}
+          onClick={() => setBet(bet - 30)}
+          aria-label="Diminuisci"
+        >
           −
         </Button>
         <span className="tabular text-3xl font-black text-gold-400">{formatCents(bet)}</span>
@@ -679,8 +793,8 @@ function EndSheet({ open, onClose, state, run }: { open: boolean; onClose: () =>
       {canEnd(state) ? (
         <>
           <p className="text-sm text-white/70">
-            La messa ({formatCents(state.potCents)}) torna al mazziere e vengono calcolati i conti finali, con chi deve
-            pagare chi. Potrai riaprire la partita se serve.
+            La messa ({formatCents(state.potCents)}) torna al mazziere e vengono calcolati i conti finali, con chi deve pagare chi. Potrai
+            riaprire la partita se serve.
           </p>
           <Button variant="danger" className="mt-5 w-full" onClick={() => run({ type: "game_ended" }).then((ok) => ok && onClose())}>
             Termina e calcola i conti
@@ -703,12 +817,18 @@ function TvSheet({ onClose, gameId }: { onClose: () => void; gameId: string }) {
     <Sheet open onClose={onClose} title="Vista TV">
       <p className="text-sm text-white/70">Apri questa pagina sullo schermo da proiettare: si aggiorna da sola a ogni mano.</p>
       <p className="mt-3 break-all rounded-xl bg-night-900 p-3 font-mono text-sm">{url}</p>
-      <a href={`/tv/${gameId}`} target="_blank" rel="noreferrer" className="mt-4 block rounded-2xl bg-blue-600 py-3.5 text-center font-bold">
+      <a
+        href={`/tv/${gameId}`}
+        target="_blank"
+        rel="noreferrer"
+        className="mt-4 block rounded-2xl bg-blue-600 py-3.5 text-center font-bold"
+      >
         Apri vista TV
       </a>
       <p className="mt-3 text-xs text-white/40">
-        Per ora i dati sono salvati su questo dispositivo, quindi la vista TV funziona da un&apos;altra scheda dello stesso
-        browser (es. portatile collegato alla TV). Con il backend funzionerà da qualsiasi dispositivo.
+        {isSupabaseConfigured
+          ? "La partita è online: la vista TV funziona da qualsiasi dispositivo collegato a internet."
+          : "Per ora i dati sono salvati su questo dispositivo, quindi la vista TV funziona da un'altra scheda dello stesso browser (es. portatile collegato alla TV). Con il backend funzionerà da qualsiasi dispositivo."}
       </p>
     </Sheet>
   );
@@ -719,22 +839,33 @@ function PlayerSheet({
   seat,
   state,
   onClose,
+  onEditCharacter,
   run,
 }: {
   player: PlayerState;
   seat: number;
   state: GameState;
   onClose: () => void;
+  onEditCharacter: () => void;
   run: Run;
 }) {
   const canLeave = canChangeTable(state);
+  const hasCharacter = useCharacter(player.name) !== null;
   return (
     <Sheet open onClose={onClose} title={player.name}>
       <div className="flex items-center gap-4">
-        <Avatar name={player.name} seat={seat} dealer={player.id === state.dealerId} />
-        <p className={`tabular text-3xl font-black ${amountColor(player.balanceCents)}`}>
-          {formatCents(player.balanceCents, { signed: true })}
-        </p>
+        <Avatar name={player.name} seat={seat} dealer={player.id === state.dealerId} size="xl" />
+        <div className="min-w-0 flex-1">
+          <p className={`tabular text-3xl font-black ${amountColor(player.balanceCents)}`}>
+            {formatCents(player.balanceCents, { signed: true })}
+          </p>
+          <button
+            onClick={onEditCharacter}
+            className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-night-700 px-3 py-1.5 text-sm font-semibold text-white/85 hover:bg-night-600"
+          >
+            <Shirt size={16} /> {hasCharacter ? "Modifica personaggio" : "Crea personaggio"}
+          </button>
+        </div>
       </div>
       <dl className="mt-4 grid grid-cols-3 gap-2 text-center">
         <Stat label="Mani vinte" value={player.stats.handsWon} />

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ArrowRight, RotateCcw, Trophy } from "lucide-react";
-import { formatCents, simplifyDebts, type GameState, type HistoryEntry } from "@/engine";
+import { colorIndex, formatCents, simplifyDebts, type GameState, type HistoryEntry } from "@/engine";
 import { Button } from "./Sheet";
 import { Avatar } from "./ui";
 
@@ -20,7 +20,7 @@ export function Results({
   onReopen?: () => void;
   backHref?: string;
 }) {
-  const seat = (id: string) => state.players.findIndex((p) => p.id === id);
+  const seat = (id: string) => colorIndex(state, id);
   const ranking = [...state.players].sort((a, b) => b.balanceCents - a.balanceCents);
   const name = (id: string) => state.players.find((p) => p.id === id)?.name ?? "?";
   const transfers = simplifyDebts(Object.fromEntries(state.players.map((p) => [p.id, p.balanceCents])));

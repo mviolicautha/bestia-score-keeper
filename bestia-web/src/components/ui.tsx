@@ -2,13 +2,15 @@
 
 import { useEffect } from "react";
 import { AlertTriangle, CheckCircle2, Info } from "lucide-react";
+import { useCharacter } from "@/lib/avatar/store";
+import { Character, CROPS } from "./Character";
 import { Button, Sheet } from "./Sheet";
 
 /**
  * Colori dei giocatori, assegnati per posto al tavolo (stessa logica dell'app Flutter):
  * un giocatore tiene il suo colore per tutta la serata, anche se altri escono.
  */
-const SEAT_COLORS = [
+export const SEAT_COLORS = [
   "bg-red-700",
   "bg-blue-700",
   "bg-green-700",
@@ -23,6 +25,10 @@ const SEAT_COLORS = [
   "bg-cyan-800",
 ];
 
+/**
+ * Icona tonda del giocatore: il suo personaggio se l'ha creato, altrimenti l'iniziale.
+ * Lo sfondo resta il colore del posto, così si riconosce anche a colpo d'occhio.
+ */
 export function Avatar({
   name,
   seat,
@@ -32,16 +38,27 @@ export function Avatar({
   name: string;
   seat: number;
   dealer?: boolean;
-  size?: "sm" | "md";
+  /** `lg` si misura in em: per la vista TV, che scala col testo. */
+  size?: "sm" | "md" | "lg" | "xl";
 }) {
-  const dim = size === "sm" ? "h-8 w-8 text-sm" : "h-11 w-11 text-lg";
+  const character = useCharacter(name);
+  const dim = {
+    sm: "h-8 w-8 text-sm",
+    md: "h-11 w-11 text-lg",
+    lg: "h-[2.4em] w-[2.4em] text-[1.1em]",
+    xl: "h-20 w-20 text-3xl",
+  }[size];
   return (
     <span className="relative inline-flex shrink-0">
       <span
-        className={`grid place-items-center rounded-full font-black text-white ring-2 ring-white/15 ${dim} ${SEAT_COLORS[seat % SEAT_COLORS.length]}`}
+        className={`grid place-items-center overflow-hidden rounded-full font-black text-white ring-2 ring-white/15 ${dim} ${SEAT_COLORS[seat % SEAT_COLORS.length]}`}
         aria-hidden
       >
-        {name.trim().charAt(0).toUpperCase() || "?"}
+        {character ? (
+          <Character config={character} crop={CROPS.head} className="h-full w-full" />
+        ) : (
+          name.trim().charAt(0).toUpperCase() || "?"
+        )}
       </span>
       {dealer && (
         <span
