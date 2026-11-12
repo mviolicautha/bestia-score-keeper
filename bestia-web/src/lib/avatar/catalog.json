@@ -1,0 +1,942 @@
+{
+  "size": 512,
+  "base": "/avatars/base.webp",
+  "eyebrows": "/avatars/eyebrows/{color}.webp",
+  "order": [
+    "back",
+    "outfit",
+    "facial",
+    "mouth",
+    "hair",
+    "glasses",
+    "hat",
+    "costume",
+    "extra"
+  ],
+  "slots": {
+    "costume": [
+      "outfit",
+      "hat"
+    ]
+  },
+  "categories": [
+    {
+      "id": "hair",
+      "label": "Capelli"
+    },
+    {
+      "id": "facial",
+      "label": "Barba e baffi"
+    },
+    {
+      "id": "glasses",
+      "label": "Occhiali"
+    },
+    {
+      "id": "hat",
+      "label": "Cappello"
+    },
+    {
+      "id": "outfit",
+      "label": "Vestito"
+    },
+    {
+      "id": "costume",
+      "label": "Costume"
+    },
+    {
+      "id": "mouth",
+      "label": "Bocca"
+    },
+    {
+      "id": "back",
+      "label": "Dietro"
+    },
+    {
+      "id": "extra",
+      "label": "Extra"
+    }
+  ],
+  "hairColors": [
+    {
+      "id": "naturale",
+      "label": "Naturale",
+      "hex": null
+    },
+    {
+      "id": "nero",
+      "label": "Nero",
+      "hex": "#342e2e"
+    },
+    {
+      "id": "castano-scuro",
+      "label": "Castano scuro",
+      "hex": "#523626"
+    },
+    {
+      "id": "castano",
+      "label": "Castano",
+      "hex": "#784e30"
+    },
+    {
+      "id": "biondo",
+      "label": "Biondo",
+      "hex": "#cea668"
+    },
+    {
+      "id": "rosso",
+      "label": "Rosso",
+      "hex": "#ac4824"
+    },
+    {
+      "id": "grigio",
+      "label": "Grigio",
+      "hex": "#969498"
+    },
+    {
+      "id": "blu",
+      "label": "Blu",
+      "hex": "#466edc"
+    },
+    {
+      "id": "rosa",
+      "label": "Rosa",
+      "hex": "#e470aa"
+    },
+    {
+      "id": "verde",
+      "label": "Verde",
+      "hex": "#48aa5c"
+    }
+  ],
+  "items": [
+    {
+      "id": "back_aura",
+      "category": "back",
+      "label": "Aura",
+      "src": "/avatars/back/back_aura.webp",
+      "box": [
+        0.033,
+        0.012,
+        0.975,
+        0.998
+      ]
+    },
+    {
+      "id": "back_dragon_wings",
+      "category": "back",
+      "label": "Ali di drago",
+      "src": "/avatars/back/back_dragon_wings.webp",
+      "box": [
+        0,
+        0.139,
+        1,
+        0.926
+      ]
+    },
+    {
+      "id": "back_fairy_wings",
+      "category": "back",
+      "label": "Ali di fata",
+      "src": "/avatars/back/back_fairy_wings.webp",
+      "box": [
+        0.041,
+        0.207,
+        0.959,
+        0.939
+      ]
+    },
+    {
+      "id": "back_gabrosa",
+      "category": "back",
+      "label": "Gabrosa",
+      "src": "/avatars/back/back_gabrosa.webp",
+      "box": [
+        0.199,
+        0.162,
+        0.941,
+        1
+      ]
+    },
+    {
+      "id": "back_ludopatia",
+      "category": "back",
+      "label": "Demone del gioco",
+      "src": "/avatars/back/back_ludopatia.webp",
+      "box": [
+        0.027,
+        0,
+        1,
+        0.92
+      ]
+    },
+    {
+      "id": "back_stasi",
+      "category": "back",
+      "label": "Stasi",
+      "src": "/avatars/back/back_stasi.webp",
+      "box": [
+        0.178,
+        0.23,
+        0.836,
+        1
+      ]
+    },
+    {
+      "id": "outfit_apron_abs",
+      "category": "outfit",
+      "label": "Grembiule addominali",
+      "src": "/avatars/outfit/outfit_apron_abs.webp",
+      "box": [
+        0.195,
+        0.479,
+        0.805,
+        1
+      ]
+    },
+    {
+      "id": "outfit_bandit",
+      "category": "outfit",
+      "label": "Ladro",
+      "src": "/avatars/outfit/outfit_bandit.webp",
+      "box": [
+        0.195,
+        0.479,
+        0.807,
+        1
+      ]
+    },
+    {
+      "id": "outfit_bellagianda",
+      "category": "outfit",
+      "label": "Felpa Bella Gianda",
+      "src": "/avatars/outfit/outfit_bellagianda.webp",
+      "box": [
+        0.168,
+        0.479,
+        0.832,
+        1
+      ]
+    },
+    {
+      "id": "outfit_bomber",
+      "category": "outfit",
+      "label": "Bomber",
+      "src": "/avatars/outfit/outfit_bomber.webp",
+      "box": [
+        0.16,
+        0.479,
+        0.84,
+        1
+      ]
+    },
+    {
+      "id": "outfit_ce",
+      "category": "outfit",
+      "label": "Maglia del Che",
+      "src": "/avatars/outfit/outfit_ce.webp",
+      "box": [
+        0.195,
+        0.479,
+        0.805,
+        0.998
+      ]
+    },
+    {
+      "id": "outfit_cortona_camucia",
+      "category": "outfit",
+      "label": "Piumino Cortona Camucia",
+      "src": "/avatars/outfit/outfit_cortona_camucia.webp",
+      "box": [
+        0.125,
+        0.479,
+        0.875,
+        1
+      ]
+    },
+    {
+      "id": "outfit_esqueleto",
+      "category": "outfit",
+      "label": "Giacca scheletro",
+      "src": "/avatars/outfit/outfit_esqueleto.webp",
+      "box": [
+        0.178,
+        0.479,
+        0.822,
+        1
+      ]
+    },
+    {
+      "id": "outfit_homeless",
+      "category": "outfit",
+      "label": "Maglia strappata",
+      "src": "/avatars/outfit/outfit_homeless.webp",
+      "box": [
+        0.191,
+        0.479,
+        0.809,
+        1
+      ]
+    },
+    {
+      "id": "outfit_muscles",
+      "category": "outfit",
+      "label": "Muscoli",
+      "src": "/avatars/outfit/outfit_muscles.webp",
+      "box": [
+        0.098,
+        0.479,
+        0.902,
+        1
+      ]
+    },
+    {
+      "id": "outfit_nostalgia",
+      "category": "outfit",
+      "label": "Camicia nera",
+      "src": "/avatars/outfit/outfit_nostalgia.webp",
+      "box": [
+        0.184,
+        0.479,
+        0.816,
+        1
+      ]
+    },
+    {
+      "id": "outfit_palermo",
+      "category": "outfit",
+      "label": "Maglia del Palermo",
+      "src": "/avatars/outfit/outfit_palermo.webp",
+      "box": [
+        0.195,
+        0.479,
+        0.807,
+        1
+      ]
+    },
+    {
+      "id": "outfit_pigia_vina",
+      "category": "outfit",
+      "label": "Maglia Pigia Vina",
+      "src": "/avatars/outfit/outfit_pigia_vina.webp",
+      "box": [
+        0.195,
+        0.479,
+        0.807,
+        1
+      ]
+    },
+    {
+      "id": "outfit_polo_white",
+      "category": "outfit",
+      "label": "Polo",
+      "src": "/avatars/outfit/outfit_polo_white.webp",
+      "box": [
+        0.195,
+        0.479,
+        0.807,
+        0.998
+      ]
+    },
+    {
+      "id": "outfit_random",
+      "category": "outfit",
+      "label": "Camicia aperta",
+      "src": "/avatars/outfit/outfit_random.webp",
+      "box": [
+        0.172,
+        0.479,
+        0.828,
+        1
+      ]
+    },
+    {
+      "id": "outfit_suit",
+      "category": "outfit",
+      "label": "Giacca e cravatta",
+      "src": "/avatars/outfit/outfit_suit.webp",
+      "box": [
+        0.176,
+        0.479,
+        0.824,
+        1
+      ]
+    },
+    {
+      "id": "outfit_tecno_camicia",
+      "category": "outfit",
+      "label": "Camicia e cravatta",
+      "src": "/avatars/outfit/outfit_tecno_camicia.webp",
+      "box": [
+        0.182,
+        0.479,
+        0.818,
+        1
+      ]
+    },
+    {
+      "id": "outfit_tecno_outfit",
+      "category": "outfit",
+      "label": "Gessato",
+      "src": "/avatars/outfit/outfit_tecno_outfit.webp",
+      "box": [
+        0.18,
+        0.479,
+        0.82,
+        1
+      ]
+    },
+    {
+      "id": "outfit_tshirt_iqos",
+      "category": "outfit",
+      "label": "Maglietta IQOS",
+      "src": "/avatars/outfit/outfit_tshirt_iqos.webp",
+      "box": [
+        0.195,
+        0.479,
+        0.807,
+        0.998
+      ]
+    },
+    {
+      "id": "outfit_tunica",
+      "category": "outfit",
+      "label": "Tunica",
+      "src": "/avatars/outfit/outfit_tunica.webp",
+      "box": [
+        0.166,
+        0.479,
+        0.838,
+        1
+      ]
+    },
+    {
+      "id": "outfit_vest",
+      "category": "outfit",
+      "label": "Gilet",
+      "src": "/avatars/outfit/outfit_vest.webp",
+      "box": [
+        0.195,
+        0.479,
+        0.807,
+        1
+      ]
+    },
+    {
+      "id": "facial_beard_short",
+      "category": "facial",
+      "label": "Barba corta",
+      "src": "/avatars/facial/facial_beard_short.webp",
+      "box": [
+        0.371,
+        0.408,
+        0.627,
+        0.607
+      ]
+    },
+    {
+      "id": "facial_mustache_big",
+      "category": "facial",
+      "label": "Baffoni",
+      "src": "/avatars/facial/facial_mustache_big.webp",
+      "box": [
+        0.4,
+        0.475,
+        0.6,
+        0.547
+      ]
+    },
+    {
+      "id": "mouth_cigarette",
+      "category": "mouth",
+      "label": "Sigaretta",
+      "src": "/avatars/mouth/mouth_cigarette.webp",
+      "box": [
+        0.525,
+        0.508,
+        0.602,
+        0.561
+      ]
+    },
+    {
+      "id": "hair_long",
+      "category": "hair",
+      "label": "Lunghi",
+      "src": "/avatars/hair/hair_long/{color}.webp",
+      "box": [
+        0.285,
+        0.164,
+        0.711,
+        0.689
+      ]
+    },
+    {
+      "id": "hair_ricci",
+      "category": "hair",
+      "label": "Ricci",
+      "src": "/avatars/hair/hair_ricci/{color}.webp",
+      "box": [
+        0.348,
+        0.191,
+        0.652,
+        0.639
+      ]
+    },
+    {
+      "id": "hair_short",
+      "category": "hair",
+      "label": "Corti",
+      "src": "/avatars/hair/hair_short/{color}.webp",
+      "box": [
+        0.359,
+        0.193,
+        0.641,
+        0.441
+      ]
+    },
+    {
+      "id": "hair_very_short",
+      "category": "hair",
+      "label": "Cortissimi",
+      "src": "/avatars/hair/hair_very_short/{color}.webp",
+      "box": [
+        0.365,
+        0.213,
+        0.635,
+        0.43
+      ]
+    },
+    {
+      "id": "glasses_aviator_orange",
+      "category": "glasses",
+      "label": "Aviator arancioni",
+      "src": "/avatars/glasses/glasses_aviator_orange.webp",
+      "box": [
+        0.371,
+        0.365,
+        0.629,
+        0.469
+      ]
+    },
+    {
+      "id": "glasses_orange",
+      "category": "glasses",
+      "label": "Tondi arancioni",
+      "src": "/avatars/glasses/glasses_orange.webp",
+      "box": [
+        0.367,
+        0.373,
+        0.631,
+        0.477
+      ]
+    },
+    {
+      "id": "glasses_sun_black",
+      "category": "glasses",
+      "label": "Da sole",
+      "src": "/avatars/glasses/glasses_sun_black.webp",
+      "box": [
+        0.369,
+        0.363,
+        0.631,
+        0.473
+      ]
+    },
+    {
+      "id": "glasses_veloci",
+      "category": "glasses",
+      "label": "Specchiati",
+      "src": "/avatars/glasses/glasses_veloci.webp",
+      "box": [
+        0.367,
+        0.363,
+        0.631,
+        0.477
+      ]
+    },
+    {
+      "id": "hat_bandana_green",
+      "category": "hat",
+      "label": "Bandana",
+      "src": "/avatars/hat/hat_bandana_green.webp",
+      "box": [
+        0.34,
+        0.213,
+        0.658,
+        0.4
+      ],
+      "hairMask": "/avatars/hairmask/hat_bandana_green.png"
+    },
+    {
+      "id": "hat_bauli",
+      "category": "hat",
+      "label": "Carta del Bauli",
+      "src": "/avatars/hat/hat_bauli.webp",
+      "box": [
+        0.32,
+        0.131,
+        0.678,
+        0.57
+      ],
+      "hairMask": "/avatars/hairmask/hat_bauli.png"
+    },
+    {
+      "id": "hat_cap_camo",
+      "category": "hat",
+      "label": "Cappellino mimetico",
+      "src": "/avatars/hat/hat_cap_camo.webp",
+      "box": [
+        0.363,
+        0.168,
+        0.639,
+        0.373
+      ],
+      "hairMask": "/avatars/hairmask/hat_cap_camo.png"
+    },
+    {
+      "id": "hat_cappello_gnomo",
+      "category": "hat",
+      "label": "Cilindro verde",
+      "src": "/avatars/hat/hat_cappello_gnomo.webp",
+      "box": [
+        0.291,
+        0.027,
+        0.709,
+        0.391
+      ],
+      "hairMask": "/avatars/hairmask/hat_cappello_gnomo.png"
+    },
+    {
+      "id": "hat_chicken",
+      "category": "hat",
+      "label": "Gallina",
+      "src": "/avatars/hat/hat_chicken.webp",
+      "box": [
+        0.328,
+        0.055,
+        0.672,
+        0.406
+      ],
+      "hairMask": "/avatars/hairmask/hat_chicken.png"
+    },
+    {
+      "id": "hat_clam_closed",
+      "category": "hat",
+      "label": "Vongola chiusa",
+      "src": "/avatars/hat/hat_clam_closed.webp",
+      "box": [
+        0.148,
+        0.096,
+        0.85,
+        0.719
+      ],
+      "hairMask": "/avatars/hairmask/hat_clam_closed.png",
+      "hidesHair": "all",
+      "hidesFace": true
+    },
+    {
+      "id": "hat_clam_open",
+      "category": "hat",
+      "label": "Vongola aperta",
+      "src": "/avatars/hat/hat_clam_open.webp",
+      "box": [
+        0.148,
+        0.09,
+        0.852,
+        0.699
+      ],
+      "hairMask": "/avatars/hairmask/hat_clam_open.png"
+    },
+    {
+      "id": "hat_cowboy",
+      "category": "hat",
+      "label": "Cowboy",
+      "src": "/avatars/hat/hat_cowboy.webp",
+      "box": [
+        0.283,
+        0.117,
+        0.715,
+        0.398
+      ],
+      "hairMask": "/avatars/hairmask/hat_cowboy.png"
+    },
+    {
+      "id": "hat_crazy",
+      "category": "hat",
+      "label": "Scolapasta",
+      "src": "/avatars/hat/hat_crazy.webp",
+      "box": [
+        0.295,
+        0.146,
+        0.705,
+        0.373
+      ],
+      "hairMask": "/avatars/hairmask/hat_crazy.png"
+    },
+    {
+      "id": "hat_d",
+      "category": "hat",
+      "label": "Cappellino D",
+      "src": "/avatars/hat/hat_d.webp",
+      "box": [
+        0.369,
+        0.188,
+        0.633,
+        0.408
+      ],
+      "hairMask": "/avatars/hairmask/hat_d.png"
+    },
+    {
+      "id": "hat_finanziere",
+      "category": "hat",
+      "label": "Finanziere",
+      "src": "/avatars/hat/hat_finanziere.webp",
+      "box": [
+        0.313,
+        0.102,
+        0.688,
+        0.393
+      ],
+      "hairMask": "/avatars/hairmask/hat_finanziere.png"
+    },
+    {
+      "id": "hat_flat_cap",
+      "category": "hat",
+      "label": "Coppola",
+      "src": "/avatars/hat/hat_flat_cap.webp",
+      "box": [
+        0.338,
+        0.18,
+        0.662,
+        0.377
+      ],
+      "hairMask": "/avatars/hairmask/hat_flat_cap.png"
+    },
+    {
+      "id": "hat_funny",
+      "category": "hat",
+      "label": "Cappellino a elica",
+      "src": "/avatars/hat/hat_funny.webp",
+      "box": [
+        0.367,
+        0.121,
+        0.633,
+        0.346
+      ],
+      "hairMask": "/avatars/hairmask/hat_funny.png"
+    },
+    {
+      "id": "hat_helmet_bike",
+      "category": "hat",
+      "label": "Casco da bici",
+      "src": "/avatars/hat/hat_helmet_bike.webp",
+      "box": [
+        0.33,
+        0.15,
+        0.67,
+        0.619
+      ],
+      "hairMask": "/avatars/hairmask/hat_helmet_bike.png"
+    },
+    {
+      "id": "hat_helmet_moto",
+      "category": "hat",
+      "label": "Casco da moto",
+      "src": "/avatars/hat/hat_helmet_moto.webp",
+      "box": [
+        0.299,
+        0.143,
+        0.701,
+        0.641
+      ],
+      "hairMask": "/avatars/hairmask/hat_helmet_moto.png"
+    },
+    {
+      "id": "hat_jellyfish",
+      "category": "hat",
+      "label": "Medusa",
+      "src": "/avatars/hat/hat_jellyfish.webp",
+      "box": [
+        0.299,
+        0.082,
+        0.703,
+        0.635
+      ],
+      "hairMask": "/avatars/hairmask/hat_jellyfish.png"
+    },
+    {
+      "id": "hat_muratozoo",
+      "category": "hat",
+      "label": "Muratozoo",
+      "src": "/avatars/hat/hat_muratozoo.webp",
+      "box": [
+        0.271,
+        0.025,
+        0.656,
+        0.641
+      ],
+      "hairMask": "/avatars/hairmask/hat_muratozoo.png",
+      "hidesHair": "all"
+    },
+    {
+      "id": "hat_nido",
+      "category": "hat",
+      "label": "Nido con anatra",
+      "src": "/avatars/hat/hat_nido.webp",
+      "box": [
+        0.32,
+        0.072,
+        0.672,
+        0.346
+      ],
+      "hairMask": "/avatars/hairmask/hat_nido.png"
+    },
+    {
+      "id": "hat_pumpkin",
+      "category": "hat",
+      "label": "Zucca",
+      "src": "/avatars/hat/hat_pumpkin.webp",
+      "box": [
+        0.209,
+        0.08,
+        0.791,
+        0.699
+      ],
+      "hairMask": "/avatars/hairmask/hat_pumpkin.png",
+      "hidesHair": "all"
+    },
+    {
+      "id": "hat_santa",
+      "category": "hat",
+      "label": "Babbo Natale",
+      "src": "/avatars/hat/hat_santa.webp",
+      "box": [
+        0.34,
+        0.123,
+        0.764,
+        0.467
+      ],
+      "hairMask": "/avatars/hairmask/hat_santa.png"
+    },
+    {
+      "id": "hat_sombrero",
+      "category": "hat",
+      "label": "Sombrero",
+      "src": "/avatars/hat/hat_sombrero.webp",
+      "box": [
+        0.146,
+        0.033,
+        0.852,
+        0.432
+      ],
+      "hairMask": "/avatars/hairmask/hat_sombrero.png"
+    },
+    {
+      "id": "hat_strange",
+      "category": "hat",
+      "label": "Cappellaio matto",
+      "src": "/avatars/hat/hat_strange.webp",
+      "box": [
+        0.293,
+        0.029,
+        0.711,
+        0.408
+      ],
+      "hairMask": "/avatars/hairmask/hat_strange.png"
+    },
+    {
+      "id": "costume_book_of_ra",
+      "category": "costume",
+      "label": "Esploratore",
+      "src": "/avatars/costume/costume_book_of_ra.webp",
+      "box": [
+        0.16,
+        0.148,
+        0.84,
+        1
+      ],
+      "hairMask": "/avatars/hairmask/costume_book_of_ra.png",
+      "hidesHair": "top"
+    },
+    {
+      "id": "costume_gnomo",
+      "category": "costume",
+      "label": "Folletto",
+      "src": "/avatars/costume/costume_gnomo.webp",
+      "box": [
+        0.178,
+        0.068,
+        0.822,
+        1
+      ],
+      "hairMask": "/avatars/hairmask/costume_gnomo.png",
+      "hidesHair": "top"
+    },
+    {
+      "id": "costume_hoodie",
+      "category": "costume",
+      "label": "Felpa col cappuccio",
+      "src": "/avatars/costume/costume_hoodie.webp",
+      "box": [
+        0.166,
+        0.199,
+        0.834,
+        1
+      ],
+      "hairMask": "/avatars/hairmask/costume_hoodie.png",
+      "hidesHair": "all"
+    },
+    {
+      "id": "costume_nun",
+      "category": "costume",
+      "label": "Suora",
+      "src": "/avatars/costume/costume_nun.webp",
+      "box": [
+        0.17,
+        0.213,
+        0.83,
+        1
+      ],
+      "hairMask": "/avatars/hairmask/costume_nun.png",
+      "hidesHair": "all"
+    },
+    {
+      "id": "costume_olianti",
+      "category": "costume",
+      "label": "Olianti",
+      "src": "/avatars/costume/costume_olianti.webp",
+      "box": [
+        0.195,
+        0.199,
+        0.807,
+        1
+      ],
+      "hairMask": "/avatars/hairmask/costume_olianti.png",
+      "hidesHair": "top"
+    },
+    {
+      "id": "extra_black_scooter_poseidon",
+      "category": "extra",
+      "label": "Scooter",
+      "src": "/avatars/extra/extra_black_scooter_poseidon.webp",
+      "box": [
+        0.191,
+        0.648,
+        0.809,
+        1
+      ]
+    },
+    {
+      "id": "extra_e_scooter",
+      "category": "extra",
+      "label": "Monopattino",
+      "src": "/avatars/extra/extra_e_scooter.webp",
+      "box": [
+        0.135,
+        0.699,
+        0.865,
+        0.998
+      ]
+    }
+  ]
+}
