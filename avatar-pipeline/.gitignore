@@ -1,0 +1,5 @@
+# dipendenze
+node_modules/
+
+# generato da npm run build / preview (si rigenera dalle immagini in inputDir)
+output/

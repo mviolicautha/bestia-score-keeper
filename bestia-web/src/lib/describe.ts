@@ -23,7 +23,12 @@ export function describeEntry(entry: HistoryEntry, state: GameState): EventDescr
       return {
         kind: "info",
         title: `${event.name} si siede al tavolo`,
-        detail: outcome.dealerAfter === event.playerId && outcome.dealerBefore === null ? "Primo mazziere" : undefined,
+        detail:
+          outcome.dealerAfter === event.playerId && outcome.dealerBefore === null
+            ? "Primo mazziere"
+            : event.seatAfter
+              ? `Si siede dopo ${name(event.seatAfter)}`
+              : undefined,
       };
     case "player_left":
       return {

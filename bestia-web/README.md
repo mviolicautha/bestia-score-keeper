@@ -13,6 +13,9 @@ npm test        # tutti i test: motore, serate casuali, interfaccia (master, TV,
 npm run build   # build di produzione
 ```
 
+Per le partite online (vista TV da qualsiasi dispositivo, giocatori dal telefono) vedi [SUPABASE.md](SUPABASE.md):
+senza configurazione l'app salva tutto in locale.
+
 ## Struttura
 
 | Cartella | Cosa contiene |
@@ -23,6 +26,9 @@ npm run build   # build di produzione
 | `src/app/page.tsx` | Elenco partite e creazione. |
 | `src/app/partita/[id]/` | Schermata del master: giocatori, passa, gioca mano (vincitori → bestie), società, messa, cronologia, fine partita. |
 | `src/app/tv/[id]/` | Vista da proiettare: classifica, andamento, piatto, ultime mani; a fine partita mostra chi paga chi. |
+| `src/lib/avatar/` | Personaggi dei giocatori: `catalog.json` (generato da `../avatar-pipeline`, non modificarlo a mano), regole di composizione (`catalog.ts`) e salvataggio per nome (`store.ts`). |
+| `src/components/Character*.tsx` | Disegno del personaggio a livelli sovrapposti ed editor (scheda giocatore → "Crea personaggio"). |
+| `public/avatars/` | Immagini dei pezzi (generate da `npm run export` in `../avatar-pipeline`). |
 
 ## Come funziona il motore
 
@@ -33,6 +39,10 @@ rigiocandoli con `replay()`. Ne derivano:
 - annulla illimitato (si toglie l'ultimo evento, anche dopo aver chiuso il browser);
 - statistiche esatte (non si leggono più i testi dei log);
 - in futuro la stessa sequenza salvata sul database alimenta vista TV, storico e debiti.
+
+I posti seguono il giro del tavolo in senso orario, che è l'ordine in cui passa il mazzo. Chi arriva a partita
+iniziata sceglie dopo chi sedersi (`seatAfter` in `player_added`); si entra e si esce solo a piatto pulito
+("sbestiati") e senza superare il massimo dei giocatori. Ogni giocatore tiene il suo colore per tutta la serata.
 
 Regole riprese dall'app Flutter: minimo 5 / massimo 10 giocatori (configurabili),
 messa divisibile in 3 parti, tavolo e messa modificabili solo a piatto pulito,

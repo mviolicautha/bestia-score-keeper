@@ -30,8 +30,13 @@ export interface WinnerGroup {
  */
 export type GameEvent =
   | { type: "game_started"; baseBetCents: number; rules?: Partial<GameRules> }
-  /** Aggiunge un giocatore. Se l'id esiste già ed è uscito, rientra al tavolo. */
-  | { type: "player_added"; playerId: PlayerId; name: string }
+  /**
+   * Aggiunge un giocatore. Se l'id esiste già ed è uscito, rientra al tavolo.
+   * I posti seguono il giro del tavolo in senso orario (è l'ordine in cui passa il mazzo):
+   * con `seatAfter` si siede subito dopo quel giocatore, altrimenti dopo l'ultimo
+   * (chi rientra senza `seatAfter` riprende il suo vecchio posto).
+   */
+  | { type: "player_added"; playerId: PlayerId; name: string; seatAfter?: PlayerId }
   | { type: "player_left"; playerId: PlayerId }
   | { type: "bet_changed"; baseBetCents: number }
   /** La mano non si gioca: il mazzo passa e il nuovo mazziere versa la messa. */
@@ -57,6 +62,8 @@ export interface PlayerStats {
 export interface PlayerState {
   id: PlayerId;
   name: string;
+  /** Ordine di arrivo (0 = primo): non cambia se altri si siedono in mezzo. Serve per colori stabili. */
+  joinOrder: number;
   balanceCents: number;
   active: boolean;
   stats: PlayerStats;
@@ -102,6 +109,7 @@ export type EngineErrorCode =
   | "POT_NOT_CLEAN"
   | "TABLE_FULL"
   | "INVALID_NAME"
+  | "INVALID_SEAT"
   | "DUPLICATE_NAME"
   | "ALREADY_ACTIVE"
   | "UNKNOWN_PLAYER"

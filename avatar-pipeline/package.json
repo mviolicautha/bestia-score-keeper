@@ -1,0 +1,15 @@
+{
+  "name": "bestia-avatar-pipeline",
+  "private": true,
+  "type": "module",
+  "description": "Turns Nano Banana edits of the base character into aligned transparent avatar layers.",
+  "scripts": {
+    "build": "node build.mjs",
+    "rebuild": "node build.mjs --force",
+    "preview": "node preview.mjs",
+    "export": "node export.mjs"
+  },
+  "dependencies": {
+    "sharp": "0.33.5"
+  }
+}

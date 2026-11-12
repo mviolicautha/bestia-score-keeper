@@ -81,6 +81,36 @@ describe("avvio e giocatori", () => {
     const { state } = replay(events);
     expect(state.players.find((p) => p.id === "b")).toMatchObject({ active: true, balanceCents: 30 });
   });
+
+  it("chi arriva si siede dove vuole nel giro: il mazzo passa da lui quando tocca al suo posto", () => {
+    const { state } = replay([
+      ...setup(5),
+      { type: "player_added", playerId: "f", name: "Fabio", seatAfter: "a" },
+      { type: "hand_passed" },
+    ]);
+    expect(state.players.map((p) => p.id)).toEqual(["a", "f", "b", "c", "d", "e"]);
+    expect(state.dealerId).toBe("f"); // siede subito dopo Anna, che faceva le carte
+  });
+
+  it("chi rientra può cambiare posto e tiene il saldo", () => {
+    const { state } = replay([
+      ...setup(6),
+      { type: "hand_played", winners: [{ playerIds: ["b"], tricks: 3 }], losers: [] },
+      { type: "player_left", playerId: "b" },
+      { type: "player_added", playerId: "b", name: "Bruno", seatAfter: "e" },
+    ]);
+    expect(state.players.map((p) => p.id)).toEqual(["a", "c", "d", "e", "b", "f"]);
+    expect(state.players.find((p) => p.id === "b")).toMatchObject({ active: true, balanceCents: 30 });
+  });
+
+  it("ci si siede solo accanto a chi è al tavolo", () => {
+    expectError([...setup(), { type: "player_added", playerId: "f", name: "Fabio", seatAfter: "zz" }], "INVALID_SEAT");
+    expectError([...setup(), { type: "player_added", playerId: "f", name: "Fabio", seatAfter: "f" }], "INVALID_SEAT");
+    expectError(
+      [...setup(6), { type: "player_left", playerId: "c" }, { type: "player_added", playerId: "g", name: "Gino", seatAfter: "c" }],
+      "INVALID_SEAT",
+    );
+  });
 });
 
 describe("passa", () => {
@@ -323,5 +353,12 @@ describe("splitCents", () => {
     expect(splitCents(100, [1, 1, 1])).toEqual([34, 33, 33]);
     expect(splitCents(30, [2, 1])).toEqual([20, 10]);
     expect(splitCents(7, [1, 1, 1, 1])).toEqual([2, 2, 2, 1]);
+  });
+});
+
+describe("colori dei giocatori", () => {
+  it("ognuno tiene il suo colore anche se qualcuno si siede in mezzo", () => {
+    const { state } = replay([...setup(5), { type: "player_added", playerId: "f", name: "Fabio", seatAfter: "a" }]);
+    expect(state.players.map((p) => [p.id, p.joinOrder])).toEqual([["a", 0], ["f", 5], ["b", 1], ["c", 2], ["d", 3], ["e", 4]]);
   });
 });

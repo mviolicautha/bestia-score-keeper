@@ -1,4 +1,6 @@
 import type { GameEvent, GameStatus } from "@/engine";
+import { ensureUser, getSupabase, isSupabaseConfigured } from "./supabase";
+import { SupabaseGameRepository } from "./supabaseRepository";
 
 /**
  * Accesso ai dati delle partite.
@@ -10,6 +12,8 @@ import type { GameEvent, GameStatus } from "@/engine";
 
 export interface GameMeta {
   id: string;
+  /** Codice breve per unirsi (solo con Supabase). */
+  code?: string;
   title: string;
   createdAt: string;
   updatedAt: string;
@@ -49,8 +53,18 @@ function write(key: string, value: unknown) {
   window.localStorage.setItem(key, JSON.stringify(value));
 }
 
+/**
+ * Id univoco (UUID v4). `crypto.randomUUID()` esiste solo su HTTPS o localhost: aprendo
+ * l'app dal telefono via `http://192.168...` non c'è, quindi lo costruiamo da
+ * `crypto.getRandomValues()`, che è disponibile ovunque.
+ */
 export function newId(): string {
-  return crypto.randomUUID();
+  if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 0x0f) | 0x40; // versione 4
+  b[8] = (b[8] & 0x3f) | 0x80; // variante RFC 4122
+  const hex = Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 class LocalGameRepository implements GameRepository {
@@ -140,7 +154,10 @@ class LocalGameRepository implements GameRepository {
 
 let instance: GameRepository | null = null;
 
+/** Supabase se è configurato (variabili d'ambiente), altrimenti il salvataggio locale. */
 export function getRepository(): GameRepository {
-  if (!instance) instance = new LocalGameRepository();
+  if (!instance) {
+    instance = isSupabaseConfigured ? new SupabaseGameRepository(getSupabase(), () => ensureUser()) : new LocalGameRepository();
+  }
   return instance;
 }

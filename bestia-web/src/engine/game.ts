@@ -43,6 +43,9 @@ export function findPlayer(s: GameState, id: PlayerId): PlayerState | undefined 
   return s.players.find((p) => p.id === id);
 }
 
+/** Indice del colore del giocatore: fisso per tutta la serata, anche se altri si siedono in mezzo. */
+export const colorIndex = (s: GameState, id: PlayerId) => findPlayer(s, id)?.joinOrder ?? 0;
+
 /** Prossimo giocatore attivo dopo `id`, in ordine di posto. */
 export function nextActiveAfter(s: GameState, id: PlayerId | null): PlayerId | null {
   const n = s.players.length;
@@ -223,19 +226,32 @@ export function applyEvent(prev: GameState, event: GameEvent): { state: GameStat
       );
       if (nameTaken) throw new EngineError("DUPLICATE_NAME", `C'è già un giocatore chiamato ${name}.`);
 
-      const existing = findPlayer(s, event.playerId);
-      if (existing) {
-        if (existing.active) throw new EngineError("ALREADY_ACTIVE", `${existing.name} è già al tavolo.`);
-        existing.active = true;
-        existing.name = name;
+      if (event.seatAfter !== undefined) {
+        if (event.seatAfter === event.playerId) throw new EngineError("INVALID_SEAT", "Non ci si può sedere accanto a sé stessi.");
+        const neighbour = findPlayer(s, event.seatAfter);
+        if (!neighbour?.active) throw new EngineError("INVALID_SEAT", "Ci si può sedere solo accanto a chi è al tavolo.");
+      }
+
+      let player = findPlayer(s, event.playerId);
+      if (player) {
+        if (player.active) throw new EngineError("ALREADY_ACTIVE", `${player.name} è già al tavolo.`);
+        player.active = true;
+        player.name = name;
       } else {
-        s.players.push({
+        player = {
           id: event.playerId,
           name,
+          joinOrder: s.players.length, // nessuno esce dall'elenco: la lunghezza conta gli arrivati
           balanceCents: 0,
           active: true,
           stats: { handsWon: 0, tricks: 0, bestie: 0 },
-        });
+        };
+        s.players.push(player);
+      }
+      // Posto scelto: subito dopo `seatAfter` nel giro del tavolo.
+      if (event.seatAfter !== undefined) {
+        s.players.splice(s.players.indexOf(player), 1);
+        s.players.splice(s.players.findIndex((p) => p.id === event.seatAfter) + 1, 0, player);
       }
       // Il primo giocatore al tavolo fa il mazziere e versa la messa.
       if (s.dealerId === null) {
