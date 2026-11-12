@@ -1,0 +1,770 @@
+"use client";
+
+import Link from "next/link";
+import { useParams } from "next/navigation";
+import { useCallback, useState } from "react";
+import {
+  ArrowLeft,
+  ChevronLeft,
+  Coins,
+  Flag,
+  History,
+  Link2,
+  LogOut,
+  MoreHorizontal,
+  Tv,
+  Undo2,
+  UserPlus,
+} from "lucide-react";
+import {
+  activePlayers,
+  canChangeTable,
+  canEnd,
+  canPlay,
+  formatCents,
+  handPayouts,
+  type GameState,
+  type PlayerId,
+  type PlayerState,
+  type WinnerGroup,
+} from "@/engine";
+import { useGame } from "@/lib/useGame";
+import { describeEntry } from "@/lib/describe";
+import { newId as newPlayerId } from "@/lib/repository";
+import { HistoryList } from "@/components/HistoryList";
+import { Button, Sheet } from "@/components/Sheet";
+import { Results } from "@/components/Results";
+import { Avatar, ConfirmDialog, haptic, Toast, type ConfirmRequest, type ToastMessage } from "@/components/ui";
+
+type HandPhase =
+  | { kind: "idle" }
+  | { kind: "winners"; groups: PlayerId[][]; major: number | null }
+  | { kind: "losers"; winners: WinnerGroup[]; groups: PlayerId[][] };
+
+type SheetKind = "add" | "bet" | "history" | "end" | "tv" | "menu" | { player: PlayerId } | null;
+
+// Colori dei gruppi selezionati (vincitori: verde/azzurro/ambra; bestie: rossi).
+const WIN = [
+  { ring: "ring-emerald-400", dot: "bg-emerald-400" },
+  { ring: "ring-cyan-400", dot: "bg-cyan-400" },
+  { ring: "ring-amber-400", dot: "bg-amber-400" },
+];
+const LOSS = [
+  { ring: "ring-red-400", dot: "bg-red-400" },
+  { ring: "ring-orange-400", dot: "bg-orange-400" },
+  { ring: "ring-pink-400", dot: "bg-pink-400" },
+  { ring: "ring-rose-300", dot: "bg-rose-300" },
+];
+const SHARE_LABEL: Record<number, string> = { 1: "1/3", 2: "2/3", 3: "3/3" };
+
+/** Aggiunge/toglie un giocatore dai gruppi selezionati. Con `linking` lo unisce all'ultimo gruppo (società). */
+function toggleIn(groups: PlayerId[][], id: PlayerId, linking: boolean, maxGroups: number): PlayerId[][] | null {
+  if (groups.some((g) => g.includes(id))) {
+    return groups.map((g) => g.filter((x) => x !== id)).filter((g) => g.length > 0);
+  }
+  if (linking && groups.length > 0) return [...groups.slice(0, -1), [...groups[groups.length - 1], id]];
+  if (groups.length >= maxGroups) return null;
+  return [...groups, [id]];
+}
+
+function winnersFrom(groups: PlayerId[][], major: number | null): WinnerGroup[] | null {
+  if (groups.length === 1) return [{ playerIds: groups[0], tricks: 3 }];
+  if (groups.length === 3) return groups.map((g) => ({ playerIds: g, tricks: 1 }));
+  if (groups.length === 2 && major !== null) {
+    return groups.map((g, i) => ({ playerIds: g, tricks: i === major ? 2 : 1 }));
+  }
+  return null;
+}
+
+export default function GamePage() {
+  const { id } = useParams<{ id: string }>();
+  const game = useGame(id);
+  const [phase, setPhase] = useState<HandPhase>({ kind: "idle" });
+  const [linking, setLinking] = useState(false);
+  const [sheet, setSheet] = useState<SheetKind>(null);
+  const [toast, setToast] = useState<ToastMessage | null>(null);
+  const [confirm, setConfirm] = useState<ConfirmRequest | null>(null);
+
+  const notify = useCallback((text: string, kind: ToastMessage["kind"] = "info") => {
+    setToast({ text, kind, id: Date.now() });
+  }, []);
+  const clearToast = useCallback(() => setToast(null), []);
+
+  if (game.loading) return <Centered>Caricamento…</Centered>;
+  if (game.error || !game.state) {
+    return (
+      <Centered>
+        <div>
+          <p>{game.error ?? "Partita non trovata."}</p>
+          <Link href="/" className="mt-4 inline-block rounded-2xl bg-blue-600 px-5 py-3 font-bold text-white">
+            Torna alle partite
+          </Link>
+        </div>
+      </Centered>
+    );
+  }
+
+  const state = game.state;
+
+  async function run(event: Parameters<typeof game.dispatch>[0]) {
+    const res = await game.dispatch(event);
+    if (res === false) return false; // doppio tocco: ignorato
+    if (res) notify(res, "error");
+    return res === null;
+  }
+
+  async function undo() {
+    const last = game.history.at(-1);
+    if (!last || !game.state) return;
+    const label = describeEntry(last, game.state).title;
+    if (await game.undo()) notify(`Annullato: ${label}`);
+  }
+
+  if (state.status === "ended") {
+    return <Results state={state} history={game.history} title={game.meta?.title} onReopen={undo} backHref="/" />;
+  }
+
+  const players = activePlayers(state);
+  const inactive = state.players.filter((p) => !p.active);
+  const seatOf = (pid: PlayerId) => state.players.findIndex((p) => p.id === pid);
+  const name = (pid: PlayerId) => state.players.find((p) => p.id === pid)?.name ?? "?";
+  const groupNames = (g: PlayerId[]) => g.map(name).join(" & ");
+
+  // Anteprima di quanto vince/paga ciascuno con la selezione attuale.
+  let preview: Record<PlayerId, number> = {};
+  let nextPot: number | null = null;
+  if (phase.kind === "winners") {
+    const w = winnersFrom(phase.groups, phase.major);
+    if (w) preview = handPayouts(state, w, []).payouts;
+  } else if (phase.kind === "losers") {
+    const res = handPayouts(state, phase.winners, phase.groups);
+    preview = res.payouts;
+    nextPot = res.collected + state.baseBetCents;
+  }
+
+  function onPlayerTap(p: PlayerState) {
+    haptic();
+    if (phase.kind === "idle") {
+      setSheet({ player: p.id });
+      return;
+    }
+    if (phase.kind === "winners") {
+      const next = toggleIn(phase.groups, p.id, linking, 3);
+      if (!next) return notify("Al massimo 3 vincitori (o società): una presa a testa.", "error");
+      setPhase({ ...phase, groups: next, major: next.length === phase.groups.length ? phase.major : null });
+      return;
+    }
+    const current = phase;
+    const toggle = () => setPhase({ ...current, groups: toggleIn(current.groups, p.id, linking, Infinity)! });
+    const isWinner = current.winners.some((g) => g.playerIds.includes(p.id));
+    const alreadyLoser = current.groups.some((g) => g.includes(p.id));
+    if (isWinner && !alreadyLoser) {
+      setConfirm({
+        title: "Vincitore anche in bestia?",
+        message: `${p.name} ha vinto una parte del piatto in questa mano. Confermi che è andato anche in bestia?`,
+        confirmLabel: "Sì, va in bestia",
+        danger: true,
+        onConfirm: toggle,
+      });
+      return;
+    }
+    toggle();
+  }
+
+  function badgeFor(pid: PlayerId): { label: string; ring: string; dot: string } | null {
+    if (phase.kind === "winners") {
+      const gi = phase.groups.findIndex((g) => g.includes(pid));
+      if (gi === -1) return null;
+      const w = winnersFrom(phase.groups, phase.major);
+      return { label: w ? SHARE_LABEL[w[gi].tricks] : String(gi + 1), ...WIN[gi] };
+    }
+    if (phase.kind === "losers") {
+      const gi = phase.groups.findIndex((g) => g.includes(pid));
+      if (gi === -1) return null;
+      return { label: "B", ...LOSS[gi % LOSS.length] };
+    }
+    return null;
+  }
+
+  const lastGroup = phase.kind !== "idle" && phase.groups.length > 0 ? phase.groups[phase.groups.length - 1] : null;
+
+  return (
+    <div className="mx-auto flex min-h-dvh max-w-2xl flex-col">
+      {/* Barra in alto */}
+      <header className="flex items-center gap-1 px-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
+        <Link href="/" className="rounded-full p-2.5 text-white/70 hover:bg-white/10" aria-label="Torna alle partite">
+          <ArrowLeft size={22} />
+        </Link>
+        <h1 className="min-w-0 flex-1 truncate text-sm font-semibold text-white/70">{game.meta?.title ?? "Partita"}</h1>
+        <IconButton label="Annulla ultima azione" disabled={!game.canUndo || phase.kind !== "idle"} onClick={undo}>
+          <Undo2 size={21} className="text-amber-300" />
+        </IconButton>
+        <IconButton label="Cronologia" onClick={() => setSheet("history")}>
+          <History size={21} />
+        </IconButton>
+        <IconButton label="Vista TV" onClick={() => setSheet("tv")}>
+          <Tv size={21} />
+        </IconButton>
+        <IconButton label="Altre opzioni" onClick={() => setSheet("menu")} disabled={phase.kind !== "idle"}>
+          <MoreHorizontal size={21} />
+        </IconButton>
+      </header>
+
+      {/* Piatto */}
+      <section className="px-3 pt-1">
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-felt-600 to-felt-700 px-5 py-4 shadow-lg ring-1 ring-black/20">
+          <span className="pointer-events-none absolute -right-3 -top-6 select-none text-[7rem] leading-none text-black/10" aria-hidden>
+            ♠
+          </span>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-white/60">Piatto</p>
+          <p className="tabular text-5xl font-black leading-tight text-gold-400 drop-shadow">{formatCents(state.potCents)}</p>
+          <p className="mt-0.5 text-xs text-white/70">
+            Messa {formatCents(state.baseBetCents)} · Mano {state.handsPlayed + 1}
+            {state.dealerId && (
+              <>
+                {" "}
+                · Fa le carte <strong className="text-white">{name(state.dealerId)}</strong>
+              </>
+            )}
+          </p>
+        </div>
+        {phase.kind !== "idle" && <Stepper step={phase.kind === "winners" ? 1 : 2} />}
+      </section>
+
+      {/* Giocatori */}
+      <main className="flex-1 px-3 pb-48 pt-3">
+        {players.length === 0 && (
+          <div className="rounded-3xl border border-dashed border-white/15 px-6 py-10 text-center text-white/55">
+            <UserPlus className="mx-auto mb-3 text-white/40" />
+            Aggiungi i giocatori in ordine di posto.
+            <br />
+            Il primo fa le carte e versa la messa.
+          </div>
+        )}
+        <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+          {players.map((p) => {
+            const badge = badgeFor(p.id);
+            const isDealer = p.id === state.dealerId;
+            const delta = preview[p.id];
+            return (
+              <li key={p.id}>
+                <button
+                  onClick={() => onPlayerTap(p)}
+                  aria-label={`${p.name}${isDealer ? ", mazziere" : ""}, saldo ${formatCents(p.balanceCents, { signed: true })}${badge ? ", selezionato" : ""}`}
+                  aria-pressed={phase.kind !== "idle" ? !!badge : undefined}
+                  className={`relative flex h-full w-full items-center gap-3 rounded-2xl p-3 text-left ring-2 transition active:scale-[0.97] ${
+                    badge ? `${badge.ring} bg-night-700` : "bg-night-800 ring-white/5"
+                  }`}
+                >
+                  <Avatar name={p.name} seat={seatOf(p.id)} dealer={isDealer} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-bold">{p.name}</span>
+                    <span className={`tabular block text-base font-black ${amountColor(p.balanceCents)}`}>
+                      {formatCents(p.balanceCents, { signed: true })}
+                    </span>
+                    {delta !== undefined && delta !== 0 && (
+                      <span
+                        className={`tabular mt-0.5 inline-block rounded-md px-1.5 text-xs font-bold ${
+                          delta > 0 ? "bg-emerald-400/15 text-emerald-300" : "bg-red-400/15 text-red-300"
+                        }`}
+                      >
+                        {formatCents(delta, { signed: true })}
+                      </span>
+                    )}
+                  </span>
+                  {badge && (
+                    <span className={`absolute -right-1.5 -top-1.5 rounded-full px-1.5 py-0.5 text-[11px] font-black text-black ring-2 ring-night-900 ${badge.dot}`}>
+                      {badge.label}
+                    </span>
+                  )}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+        {inactive.length > 0 && (
+          <div className="mt-5">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-white/35">Fuori dal tavolo</p>
+            <ul className="flex flex-wrap gap-2">
+              {inactive.map((p) => (
+                <li key={p.id} className="flex items-center gap-2 rounded-full bg-night-800/60 py-1 pl-1 pr-3 text-sm text-white/55">
+                  <Avatar name={p.name} seat={seatOf(p.id)} size="sm" />
+                  {p.name}
+                  <span className={`tabular font-bold ${amountColor(p.balanceCents)}`}>{formatCents(p.balanceCents, { signed: true })}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </main>
+
+      {/* Comandi in basso */}
+      <footer className="fixed inset-x-0 bottom-0 z-40 border-t border-white/5 bg-night-950/95 backdrop-blur">
+        <div className="mx-auto max-w-2xl px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2.5">
+          {phase.kind === "idle" && (
+            <>
+              <Hint>
+                {canPlay(state) ? (
+                  "Passa se la mano non si gioca, altrimenti Gioca mano."
+                ) : (
+                  <span className="text-amber-300">
+                    Servono almeno {state.rules.minPlayers} giocatori ({players.length}/{state.rules.minPlayers})
+                  </span>
+                )}
+              </Hint>
+              <div className="flex gap-2">
+                <Button
+                  variant="secondary"
+                  className="px-4"
+                  onClick={() => setSheet("add")}
+                  disabled={!canChangeTable(state)}
+                  aria-label="Aggiungi giocatore"
+                  title={canChangeTable(state) ? "Aggiungi giocatore" : "Solo a piatto pulito"}
+                >
+                  <UserPlus size={20} />
+                </Button>
+                <Button
+                  variant="secondary"
+                  className="flex-1 whitespace-nowrap"
+                  disabled={!canPlay(state)}
+                  onClick={async () => {
+                    haptic();
+                    if (await run({ type: "hand_passed" })) notify("Mano passata: il mazzo gira e il piatto sale");
+                  }}
+                >
+                  Passa <span className="font-semibold text-white/60">+{formatCents(state.baseBetCents)}</span>
+                </Button>
+                <Button
+                  className="flex-[1.5] whitespace-nowrap"
+                  disabled={!canPlay(state) || state.potCents <= 0}
+                  onClick={() => {
+                    haptic();
+                    setLinking(false);
+                    setPhase({ kind: "winners", groups: [], major: null });
+                  }}
+                >
+                  Gioca mano
+                </Button>
+              </div>
+            </>
+          )}
+
+          {phase.kind === "winners" && (
+            <>
+              {phase.groups.length === 2 ? (
+                <div className="mb-2">
+                  <Hint>Chi ha fatto 2 prese (2/3 del piatto)?</Hint>
+                  <div className="flex gap-2">
+                    {phase.groups.map((g, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setPhase({ ...phase, major: i })}
+                        aria-pressed={phase.major === i}
+                        className={`flex-1 truncate rounded-xl px-3 py-2 text-sm font-bold ring-2 transition ${
+                          phase.major === i ? `${WIN[i].ring} bg-night-700` : "ring-white/10 text-white/70"
+                        }`}
+                      >
+                        {groupNames(g)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <Hint>
+                  {linking && lastGroup
+                    ? `Società: tocca chi si unisce a ${groupNames(lastGroup)}`
+                    : phase.groups.length === 0
+                      ? "Tocca chi ha preso: 1 giocatore (3 prese), 2 o 3."
+                      : "Tocca altri vincitori o vai avanti."}
+                </Hint>
+              )}
+              <PhaseControls
+                linking={linking}
+                linkDisabled={phase.groups.length === 0}
+                onLink={() => setLinking(!linking)}
+                onBack={() => setPhase({ kind: "idle" })}
+                backLabel="Annulla la mano"
+                confirmLabel="Avanti"
+                confirmVariant="success"
+                confirmDisabled={!winnersFrom(phase.groups, phase.major)}
+                onConfirm={() => {
+                  haptic();
+                  setLinking(false);
+                  setPhase({ kind: "losers", winners: winnersFrom(phase.groups, phase.major)!, groups: [] });
+                }}
+              />
+            </>
+          )}
+
+          {phase.kind === "losers" && (
+            <>
+              <Hint>
+                {linking && lastGroup ? (
+                  `Società: tocca chi si unisce a ${groupNames(lastGroup)}`
+                ) : phase.groups.length === 0 ? (
+                  "Tocca chi è andato in bestia, oppure conferma se nessuno."
+                ) : (
+                  <>
+                    {phase.groups.length === 1 ? "La bestia paga" : `${phase.groups.length} bestie: ognuna paga`}{" "}
+                    {formatCents(state.potCents)} · nuovo piatto <strong className="text-gold-400">{formatCents(nextPot!)}</strong>
+                  </>
+                )}
+              </Hint>
+              <PhaseControls
+                linking={linking}
+                linkDisabled={phase.groups.length === 0}
+                onLink={() => setLinking(!linking)}
+                onBack={() => {
+                  const major = phase.winners.findIndex((w) => w.tricks === 2);
+                  setPhase({ kind: "winners", groups: phase.winners.map((w) => w.playerIds), major: major >= 0 ? major : null });
+                }}
+                backLabel="Torna ai vincitori"
+                confirmLabel={phase.groups.length === 0 ? "Nessuna bestia" : "Fine mano"}
+                confirmVariant="danger"
+                onConfirm={async () => {
+                  haptic(20);
+                  const ok = await run({ type: "hand_played", winners: phase.winners, losers: phase.groups });
+                  if (ok) {
+                    setPhase({ kind: "idle" });
+                    setLinking(false);
+                    notify(`Mano registrata · nuovo piatto ${formatCents(nextPot!)}`, "success");
+                  }
+                }}
+              />
+            </>
+          )}
+        </div>
+      </footer>
+
+      <Toast toast={toast} onDone={clearToast} />
+      <ConfirmDialog request={confirm} onClose={() => setConfirm(null)} />
+
+      {sheet === "add" && <AddPlayerSheet onClose={() => setSheet(null)} state={state} run={run} />}
+      {sheet === "bet" && <BetSheet onClose={() => setSheet(null)} state={state} run={run} />}
+      {sheet === "tv" && <TvSheet onClose={() => setSheet(null)} gameId={id} />}
+      <EndSheet open={sheet === "end"} onClose={() => setSheet(null)} state={state} run={run} />
+      <MenuSheet open={sheet === "menu"} onClose={() => setSheet(null)} onPick={setSheet} state={state} />
+      <Sheet open={sheet === "history"} onClose={() => setSheet(null)} title="Cronologia">
+        <HistoryList state={state} history={game.history} times={game.events.map((e) => e.at)} />
+      </Sheet>
+      {typeof sheet === "object" && sheet !== null && (
+        <PlayerSheet
+          player={state.players.find((p) => p.id === sheet.player)!}
+          seat={seatOf(sheet.player)}
+          state={state}
+          onClose={() => setSheet(null)}
+          run={run}
+        />
+      )}
+    </div>
+  );
+}
+
+// --- Pezzi della schermata ---------------------------------------------------
+
+type Run = (event: Parameters<ReturnType<typeof useGame>["dispatch"]>[0]) => Promise<boolean>;
+
+const amountColor = (c: number) => (c < 0 ? "text-loss" : c > 0 ? "text-gain" : "text-white/55");
+
+function Centered({ children }: { children: React.ReactNode }) {
+  return <div className="grid min-h-dvh place-items-center p-6 text-center text-white/60">{children}</div>;
+}
+
+function Hint({ children }: { children: React.ReactNode }) {
+  return <p className="mb-2 min-h-[1.25rem] text-center text-xs text-white/60">{children}</p>;
+}
+
+function IconButton({ label, children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { label: string }) {
+  return (
+    <button {...props} aria-label={label} title={label} className="rounded-full p-2.5 text-white/80 hover:bg-white/10 disabled:opacity-25">
+      {children}
+    </button>
+  );
+}
+
+function Stepper({ step }: { step: 1 | 2 }) {
+  const item = (n: 1 | 2, label: string, color: string) => (
+    <li className={`flex items-center gap-2 ${step === n ? "text-white" : "text-white/35"}`}>
+      <span className={`grid h-6 w-6 place-items-center rounded-full text-xs font-black ${step === n ? `${color} text-black` : "bg-night-700"}`}>
+        {n}
+      </span>
+      <span className="text-sm font-bold">{label}</span>
+    </li>
+  );
+  return (
+    <ol className="mt-3 flex items-center justify-center gap-3" aria-label={`Passo ${step} di 2`}>
+      {item(1, "Chi ha preso", "bg-emerald-400")}
+      <li className="h-px w-8 bg-white/15" aria-hidden />
+      {item(2, "Chi va in bestia", "bg-red-400")}
+    </ol>
+  );
+}
+
+function PhaseControls(props: {
+  linking: boolean;
+  linkDisabled: boolean;
+  onLink: () => void;
+  onBack: () => void;
+  backLabel: string;
+  confirmLabel: string;
+  confirmVariant: "success" | "danger";
+  confirmDisabled?: boolean;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="flex gap-2">
+      <Button variant="ghost" className="px-3" onClick={props.onBack} aria-label={props.backLabel} title={props.backLabel}>
+        <ChevronLeft size={22} />
+      </Button>
+      <button
+        onClick={props.onLink}
+        disabled={props.linkDisabled}
+        aria-pressed={props.linking}
+        className={`flex items-center gap-1.5 whitespace-nowrap rounded-2xl px-3.5 text-sm font-bold transition disabled:opacity-35 ${
+          props.linking ? "bg-amber-400 text-black" : "bg-night-600 text-white/85"
+        }`}
+        title="Unisci i prossimi giocatori all'ultimo selezionato (società)"
+      >
+        <Link2 size={17} /> Società
+      </button>
+      <Button variant={props.confirmVariant} className="flex-1 whitespace-nowrap" disabled={props.confirmDisabled} onClick={props.onConfirm}>
+        {props.confirmLabel}
+      </Button>
+    </div>
+  );
+}
+
+function MenuSheet({
+  open,
+  onClose,
+  onPick,
+  state,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onPick: (s: SheetKind) => void;
+  state: GameState;
+}) {
+  const item = (icon: React.ReactNode, label: string, detail: string, target: SheetKind, danger = false, disabled = false) => (
+    <li>
+      <button
+        onClick={() => onPick(target)}
+        disabled={disabled}
+        className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left hover:bg-white/5 disabled:opacity-40 disabled:hover:bg-transparent"
+      >
+        <span className={`grid h-10 w-10 place-items-center rounded-full ${danger ? "bg-red-500/15 text-red-300" : "bg-night-700 text-white/80"}`}>
+          {icon}
+        </span>
+        <span>
+          <span className={`block font-semibold ${danger ? "text-red-300" : ""}`}>{label}</span>
+          <span className="text-xs text-white/50">{detail}</span>
+        </span>
+      </button>
+    </li>
+  );
+  return (
+    <Sheet open={open} onClose={onClose} title="Opzioni">
+      <ul className="-mx-2">
+        {item(
+          <UserPlus size={19} />,
+          "Aggiungi giocatore",
+          canChangeTable(state) ? "Si siede all'ultimo posto" : "Solo quando il piatto contiene la sola messa",
+          "add",
+          false,
+          !canChangeTable(state),
+        )}
+        {item(<Coins size={19} />, "Messa del mazziere", `Attuale ${formatCents(state.baseBetCents)}`, "bet")}
+        {item(<Tv size={19} />, "Vista TV", "Classifica da proiettare", "tv")}
+        {item(<Flag size={19} />, "Termina partita", "Calcola i conti finali", "end", true)}
+      </ul>
+    </Sheet>
+  );
+}
+
+function AddPlayerSheet({ onClose, state, run }: { onClose: () => void; state: GameState; run: Run }) {
+  const [value, setValue] = useState("");
+  const [added, setAdded] = useState<string[]>([]);
+  const inactive = state.players.filter((p) => !p.active);
+
+  async function add() {
+    const n = value.trim();
+    if (await run({ type: "player_added", playerId: newPlayerId(), name: n })) {
+      setAdded((a) => [...a, n]);
+      setValue("");
+    }
+  }
+
+  return (
+    <Sheet open onClose={onClose} title="Aggiungi giocatori">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          add();
+        }}
+        className="flex gap-2"
+      >
+        <input
+          autoFocus
+          value={value}
+          maxLength={20}
+          enterKeyHint="next"
+          autoCapitalize="words"
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="Nome"
+          aria-label="Nome del giocatore"
+          className="min-w-0 flex-1 rounded-xl bg-night-900 px-4 py-3 outline-none ring-1 ring-white/10 focus:ring-blue-500"
+        />
+        <Button type="submit" disabled={!value.trim()}>
+          Aggiungi
+        </Button>
+      </form>
+      <p className="mt-3 text-xs text-white/45">
+        In ordine di posto: il mazzo gira in quest&apos;ordine. Premi Invio per aggiungere il prossimo.
+      </p>
+      {added.length > 0 && <p className="mt-2 text-sm text-emerald-300">Aggiunti: {added.join(", ")}</p>}
+      {inactive.length > 0 && (
+        <>
+          <p className="mb-2 mt-5 text-sm text-white/60">Rientra al tavolo</p>
+          <div className="flex flex-wrap gap-2">
+            {inactive.map((p) => (
+              <Button key={p.id} variant="secondary" className="py-2" onClick={() => run({ type: "player_added", playerId: p.id, name: p.name })}>
+                {p.name}
+              </Button>
+            ))}
+          </div>
+        </>
+      )}
+      <Button variant="ghost" className="mt-4 w-full" onClick={onClose}>
+        Fatto
+      </Button>
+    </Sheet>
+  );
+}
+
+function BetSheet({ onClose, state, run }: { onClose: () => void; state: GameState; run: Run }) {
+  const [bet, setBet] = useState(state.baseBetCents);
+  const allowed = canChangeTable(state);
+  return (
+    <Sheet open onClose={onClose} title="Messa del mazziere">
+      {!allowed && (
+        <p className="mb-4 rounded-xl bg-amber-500/15 p-3 text-sm text-amber-200">
+          Si può cambiare solo quando il piatto contiene la sola messa.
+        </p>
+      )}
+      <div className="flex items-center justify-between rounded-xl bg-night-900 p-2 ring-1 ring-white/10">
+        <Button variant="secondary" className="w-14" disabled={!allowed || bet <= 30} onClick={() => setBet(bet - 30)} aria-label="Diminuisci">
+          −
+        </Button>
+        <span className="tabular text-3xl font-black text-gold-400">{formatCents(bet)}</span>
+        <Button variant="secondary" className="w-14" disabled={!allowed} onClick={() => setBet(bet + 30)} aria-label="Aumenta">
+          +
+        </Button>
+      </div>
+      <Button
+        className="mt-5 w-full"
+        disabled={!allowed || bet === state.baseBetCents}
+        onClick={async () => {
+          if (await run({ type: "bet_changed", baseBetCents: bet })) onClose();
+        }}
+      >
+        Salva
+      </Button>
+    </Sheet>
+  );
+}
+
+function EndSheet({ open, onClose, state, run }: { open: boolean; onClose: () => void; state: GameState; run: Run }) {
+  return (
+    <Sheet open={open} onClose={onClose} title="Terminare la partita?">
+      {canEnd(state) ? (
+        <>
+          <p className="text-sm text-white/70">
+            La messa ({formatCents(state.potCents)}) torna al mazziere e vengono calcolati i conti finali, con chi deve
+            pagare chi. Potrai riaprire la partita se serve.
+          </p>
+          <Button variant="danger" className="mt-5 w-full" onClick={() => run({ type: "game_ended" }).then((ok) => ok && onClose())}>
+            Termina e calcola i conti
+          </Button>
+        </>
+      ) : (
+        <p className="text-sm text-white/70">
+          Il piatto contiene ancora {formatCents(state.potCents)}. Bisogna giocare finché non torna alla sola messa (
+          {formatCents(state.baseBetCents)}).
+        </p>
+      )}
+    </Sheet>
+  );
+}
+
+function TvSheet({ onClose, gameId }: { onClose: () => void; gameId: string }) {
+  // Montato solo quando è aperto, quindi sempre nel browser.
+  const url = `${window.location.origin}/tv/${gameId}`;
+  return (
+    <Sheet open onClose={onClose} title="Vista TV">
+      <p className="text-sm text-white/70">Apri questa pagina sullo schermo da proiettare: si aggiorna da sola a ogni mano.</p>
+      <p className="mt-3 break-all rounded-xl bg-night-900 p-3 font-mono text-sm">{url}</p>
+      <a href={`/tv/${gameId}`} target="_blank" rel="noreferrer" className="mt-4 block rounded-2xl bg-blue-600 py-3.5 text-center font-bold">
+        Apri vista TV
+      </a>
+      <p className="mt-3 text-xs text-white/40">
+        Per ora i dati sono salvati su questo dispositivo, quindi la vista TV funziona da un&apos;altra scheda dello stesso
+        browser (es. portatile collegato alla TV). Con il backend funzionerà da qualsiasi dispositivo.
+      </p>
+    </Sheet>
+  );
+}
+
+function PlayerSheet({
+  player,
+  seat,
+  state,
+  onClose,
+  run,
+}: {
+  player: PlayerState;
+  seat: number;
+  state: GameState;
+  onClose: () => void;
+  run: Run;
+}) {
+  const canLeave = canChangeTable(state);
+  return (
+    <Sheet open onClose={onClose} title={player.name}>
+      <div className="flex items-center gap-4">
+        <Avatar name={player.name} seat={seat} dealer={player.id === state.dealerId} />
+        <p className={`tabular text-3xl font-black ${amountColor(player.balanceCents)}`}>
+          {formatCents(player.balanceCents, { signed: true })}
+        </p>
+      </div>
+      <dl className="mt-4 grid grid-cols-3 gap-2 text-center">
+        <Stat label="Mani vinte" value={player.stats.handsWon} />
+        <Stat label="Prese" value={player.stats.tricks} />
+        <Stat label="Bestie" value={player.stats.bestie} />
+      </dl>
+      <Button
+        variant="danger"
+        className="mt-5 flex w-full items-center justify-center gap-2"
+        disabled={!canLeave}
+        onClick={async () => {
+          if (await run({ type: "player_left", playerId: player.id })) onClose();
+        }}
+      >
+        <LogOut size={18} /> Lascia il tavolo
+      </Button>
+      <p className="mt-2 text-xs text-white/40">
+        {canLeave
+          ? "Il saldo resta nei conti finali. Se è il mazziere, riprende la messa e il mazzo passa al prossimo."
+          : "Si può lasciare il tavolo solo a piatto pulito."}
+      </p>
+    </Sheet>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="flex flex-col-reverse rounded-xl bg-night-900 p-3">
+      <dt className="text-xs text-white/50">{label}</dt>
+      <dd className="tabular text-xl font-black">{value}</dd>
+    </div>
+  );
+}

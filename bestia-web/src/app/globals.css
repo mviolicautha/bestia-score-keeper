@@ -1,0 +1,34 @@
+@import "tailwindcss";
+
+/* Palette ripresa dall'app Flutter: blu notte, panno verde, oro per il piatto. */
+@theme {
+  --color-night-950: #0d1220;
+  --color-night-900: #121826;
+  --color-night-800: #1a233a;
+  --color-night-700: #243050;
+  --color-night-600: #33416a;
+  --color-felt-700: #1f5c3a;
+  --color-felt-600: #2e7d32;
+  --color-felt-500: #3fa046;
+  --color-gold-400: #ffd54a;
+  --color-gold-500: #ffc107;
+  --color-gain: #69f0ae;
+  --color-loss: #ff6b6b;
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+html,
+body {
+  background: var(--color-night-900);
+  color: #e8ecf5;
+}
+
+body {
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}

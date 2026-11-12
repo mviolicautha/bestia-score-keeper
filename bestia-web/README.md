@@ -1,0 +1,48 @@
+# Bestia (web)
+
+Segnapunti per la Bestia come web app: funziona su iPhone, Android e PC dal browser
+(e si può aggiungere alla schermata Home). È l'evoluzione dell'app Flutter che sta
+nella cartella superiore.
+
+## Avvio
+
+```bash
+npm install
+npm run dev     # http://localhost:3000
+npm test        # tutti i test: motore, serate casuali, interfaccia (master, TV, home)
+npm run build   # build di produzione
+```
+
+## Struttura
+
+| Cartella | Cosa contiene |
+|---|---|
+| `src/engine/` | **Motore di gioco puro** (TypeScript, nessuna dipendenza): regole, soldi in centesimi, statistiche, "chi paga chi". Coperto da test. Riutilizzabile anche in un'app nativa. |
+| `src/lib/repository.ts` | Salvataggio delle partite. Oggi in `localStorage`; domani una seconda implementazione con Supabase, stessa interfaccia. |
+| `src/lib/useGame.ts` | Hook React: carica la partita, valida ogni azione con il motore, gestisce annulla. |
+| `src/app/page.tsx` | Elenco partite e creazione. |
+| `src/app/partita/[id]/` | Schermata del master: giocatori, passa, gioca mano (vincitori → bestie), società, messa, cronologia, fine partita. |
+| `src/app/tv/[id]/` | Vista da proiettare: classifica, andamento, piatto, ultime mani; a fine partita mostra chi paga chi. |
+
+## Come funziona il motore
+
+La partita è una **sequenza di eventi** (`game_started`, `player_added`, `player_left`,
+`bet_changed`, `hand_passed`, `hand_played`, `game_ended`). Lo stato si ottiene
+rigiocandoli con `replay()`. Ne derivano:
+
+- annulla illimitato (si toglie l'ultimo evento, anche dopo aver chiuso il browser);
+- statistiche esatte (non si leggono più i testi dei log);
+- in futuro la stessa sequenza salvata sul database alimenta vista TV, storico e debiti.
+
+Regole riprese dall'app Flutter: minimo 5 / massimo 10 giocatori (configurabili),
+messa divisibile in 3 parti, tavolo e messa modificabili solo a piatto pulito,
+vincite 3/3, 2/3 + 1/3 o 1/3 a testa, ogni bestia paga l'intero piatto, le società
+dividono vincite e penalità. I centesimi indivisibili vanno ai primi in ordine di posto.
+
+## Prossimi passi
+
+1. **Supabase**: database, login, aggiornamenti in tempo reale → vista TV da qualsiasi dispositivo, solo il master scrive.
+2. Inviti e guest (con possibilità di rivendicare il profilo guest).
+3. Storico personale e statistiche.
+4. Registro debiti stile Splitwise con chiusura dei debiti.
+5. PWA installabile e, se servirà, app nativa con Capacitor.
