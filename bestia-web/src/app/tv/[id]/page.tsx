@@ -7,11 +7,17 @@ import { useGame } from "@/lib/useGame";
 import { HistoryList } from "@/components/HistoryList";
 import { Avatar } from "@/components/ui";
 import { Table } from "@/components/Table";
+import { CharacterOverrides } from "@/lib/avatar/overrides";
+import { isSupabaseConfigured } from "@/lib/supabase";
+import { useOnline, useRemoteCharacters } from "@/lib/useOnline";
 
 /** Vista da proiettare: sola lettura, si aggiorna da sola. */
 export default function TvPage() {
   const { id } = useParams<{ id: string }>();
   const game = useGame(id);
+  // personaggi creati dai giocatori sui loro telefoni
+  const onlineInfo = useOnline(isSupabaseConfigured ? id : null);
+  const overrides = useRemoteCharacters(game.state, onlineInfo?.seats);
 
   if (game.loading) return <Full>Caricamento…</Full>;
   if (!game.state) return <Full>Partita non trovata su questo dispositivo.</Full>;
@@ -27,6 +33,7 @@ export default function TvPage() {
   const flash = last?.event.type === "hand_played" ? last.outcome.deltas : undefined;
 
   return (
+    <CharacterOverrides value={overrides}>
     <div className="flex h-dvh flex-col gap-[2vh] overflow-hidden bg-night-950 p-[3vh] text-[clamp(14px,1.6vw,40px)]">
       <header className="flex items-end justify-between gap-6">
         <div>
@@ -102,6 +109,7 @@ export default function TvPage() {
         </div>
       </div>
     </div>
+    </CharacterOverrides>
   );
 }
 

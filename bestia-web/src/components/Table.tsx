@@ -1,7 +1,7 @@
 "use client";
 
 import { colorIndex, formatCents, type GameState, type PlayerId, type PlayerState } from "@/engine";
-import { useCharacter } from "@/lib/avatar/store";
+import { useCharacterFor } from "@/lib/avatar/overrides";
 import { Character, CROPS } from "./Character";
 import { SEAT_COLORS } from "./ui";
 
@@ -142,7 +142,7 @@ function Seat({
   label?: string;
   pressed?: boolean;
 }) {
-  const character = useCharacter(player.name);
+  const character = useCharacterFor(player.name);
   const amount = player.balanceCents;
   const content = (
     <>

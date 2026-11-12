@@ -14,10 +14,13 @@ import {
   Link2,
   LogOut,
   MoreHorizontal,
+  QrCode,
   Shirt,
+  Smartphone,
   Tv,
   Undo2,
   UserPlus,
+  X,
 } from "lucide-react";
 import {
   activePlayers,
@@ -40,17 +43,32 @@ import { Button, Sheet } from "@/components/Sheet";
 import { Results } from "@/components/Results";
 import { Avatar, ConfirmDialog, haptic, Toast, type ConfirmRequest, type ToastMessage } from "@/components/ui";
 import { CharacterEditor } from "@/components/CharacterEditor";
-import { useCharacter } from "@/lib/avatar/store";
+import { CharacterOverrides, useCharacterFor } from "@/lib/avatar/overrides";
+import { getOnline, type JoinRequest } from "@/lib/online";
+import { useOnline, useRemoteCharacters } from "@/lib/useOnline";
+import { InviteSheet } from "@/components/InviteSheet";
 import { usePref } from "@/lib/prefs";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { Table } from "@/components/Table";
+import { defaultSeatAfter, SeatPicker } from "@/components/SeatPicker";
 
 type HandPhase =
   | { kind: "idle" }
   | { kind: "winners"; groups: PlayerId[][]; major: number | null }
   | { kind: "losers"; winners: WinnerGroup[]; groups: PlayerId[][] };
 
-type SheetKind = "add" | "bet" | "history" | "end" | "tv" | "menu" | { player: PlayerId } | { character: PlayerId } | null;
+type SheetKind =
+  | "add"
+  | "bet"
+  | "history"
+  | "end"
+  | "tv"
+  | "menu"
+  | "invite"
+  | { player: PlayerId }
+  | { character: PlayerId }
+  | { approve: string }
+  | null;
 
 // Colori dei gruppi selezionati (vincitori: verde/azzurro/ambra; bestie: rossi).
 const WIN = [
@@ -94,6 +112,9 @@ export default function GamePage() {
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const [confirm, setConfirm] = useState<ConfirmRequest | null>(null);
   const [view, setView] = usePref("vista-giocatori", "grid", ["grid", "table"] as const);
+  // Partita online: telefoni collegati, richieste di sedersi, personaggi dai profili dei giocatori.
+  const onlineInfo = useOnline(isSupabaseConfigured ? id : null);
+  const overrides = useRemoteCharacters(game.state, onlineInfo?.seats);
 
   const notify = useCallback((text: string, kind: ToastMessage["kind"] = "info") => {
     setToast({ text, kind, id: Date.now() });
@@ -131,7 +152,11 @@ export default function GamePage() {
   }
 
   if (state.status === "ended") {
-    return <Results state={state} history={game.history} title={game.meta?.title} onReopen={undo} backHref="/" />;
+    return (
+      <CharacterOverrides value={overrides}>
+        <Results state={state} history={game.history} title={game.meta?.title} onReopen={undo} backHref="/" />
+      </CharacterOverrides>
+    );
   }
 
   const players = activePlayers(state);
@@ -202,6 +227,7 @@ export default function GamePage() {
   const lastGroup = phase.kind !== "idle" && phase.groups.length > 0 ? phase.groups[phase.groups.length - 1] : null;
 
   return (
+    <CharacterOverrides value={overrides}>
     <div className="mx-auto flex min-h-dvh max-w-2xl flex-col">
       {/* Barra in alto */}
       <header className="flex items-center gap-1 px-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
@@ -218,6 +244,11 @@ export default function GamePage() {
         >
           {view === "table" ? <LayoutGrid size={21} /> : <Armchair size={21} />}
         </IconButton>
+        {game.meta?.code && (
+          <IconButton label="Invita giocatori" onClick={() => setSheet("invite")}>
+            <QrCode size={21} />
+          </IconButton>
+        )}
         <IconButton label="Cronologia" onClick={() => setSheet("history")}>
           <History size={21} />
         </IconButton>
@@ -250,6 +281,28 @@ export default function GamePage() {
           </div>
         </div>
         {phase.kind !== "idle" && <Stepper step={phase.kind === "winners" ? 1 : 2} />}
+        {phase.kind === "idle" && onlineInfo?.isMaster && onlineInfo.pending.length > 0 && (
+          <ul className="mt-3 space-y-2" aria-label="Richieste di sedersi">
+            {onlineInfo.pending.map((r) => (
+              <li key={r.id} className="flex items-center gap-2 rounded-2xl bg-sky-500/15 px-3 py-2 text-sm ring-1 ring-sky-400/30">
+                <Smartphone size={16} className="shrink-0 text-sky-300" />
+                <span className="min-w-0 flex-1 truncate">
+                  <strong>{r.name}</strong> chiede di sedersi
+                </span>
+                <button onClick={() => setSheet({ approve: r.id })} className="shrink-0 rounded-full bg-sky-400 px-3 py-1 font-bold text-black">
+                  Fai sedere
+                </button>
+                <button
+                  onClick={() => void getOnline()?.decideRequest(r.id, "rejected").then(() => onlineInfo.reload())}
+                  aria-label={`Rifiuta ${r.name}`}
+                  className="shrink-0 rounded-full p-1.5 text-white/60 hover:bg-white/10"
+                >
+                  <X size={16} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       {/* Giocatori */}
@@ -492,8 +545,36 @@ export default function GamePage() {
           onClose={() => setSheet(null)}
           onEditCharacter={() => setSheet({ character: sheet.player })}
           run={run}
+          phoneLinked={!!onlineInfo?.seats.some((s) => s.playerId === sheet.player)}
+          onUnlink={() =>
+            void getOnline()
+              ?.releaseSeat(id, sheet.player)
+              .then(() => {
+                notify(`Telefono di ${name(sheet.player)} scollegato`);
+                return onlineInfo?.reload();
+              })
+          }
         />
       )}
+      {sheet === "invite" && game.meta?.code && <InviteSheet code={game.meta.code} title={game.meta.title} onClose={() => setSheet(null)} />}
+      {typeof sheet === "object" &&
+        sheet !== null &&
+        "approve" in sheet &&
+        (() => {
+          const request = onlineInfo?.pending.find((r) => r.id === sheet.approve);
+          return request ? (
+            <ApproveSheet
+              request={request}
+              state={state}
+              run={run}
+              onClose={() => setSheet(null)}
+              onDone={(text) => {
+                notify(text, "success");
+                void onlineInfo?.reload();
+              }}
+            />
+          ) : null;
+        })()}
       {typeof sheet === "object" && sheet !== null && "character" in sheet && (
         <CharacterEditor
           name={name(sheet.character)}
@@ -502,6 +583,7 @@ export default function GamePage() {
         />
       )}
     </div>
+    </CharacterOverrides>
   );
 }
 
@@ -671,33 +753,7 @@ function AddPlayerSheet({ onClose, state, run }: { onClose: () => void; state: G
       )}
       {active.length > 0 && !full && (
         <div className="mb-4">
-          <p className="mb-2 text-sm text-white/60">Si siede dopo</p>
-          <div className="-mx-1 flex flex-wrap gap-1.5" role="radiogroup" aria-label="Posto al tavolo: si siede dopo">
-            {active.map((p) => (
-              <button
-                key={p.id}
-                role="radio"
-                aria-checked={seatAfter === p.id}
-                onClick={() => setAfter(p.id)}
-                className={`flex items-center gap-1.5 rounded-full py-1 pl-1 pr-3 text-sm font-semibold ring-2 transition ${
-                  seatAfter === p.id ? "bg-night-600 text-white ring-gold-400" : "bg-night-900 text-white/70 ring-white/5"
-                }`}
-              >
-                <Avatar name={p.name} seat={p.joinOrder} size="sm" />
-                {p.name}
-              </button>
-            ))}
-          </div>
-          <p className="mt-2 text-xs text-white/45">
-            Il mazzo gira in senso orario nell&apos;ordine dei posti
-            {seatAfter && active.length > 1 && (
-              <>
-                : il nuovo arrivato siede tra <strong className="text-white/70">{active.find((p) => p.id === seatAfter)?.name}</strong> e{" "}
-                <strong className="text-white/70">{active[(active.findIndex((p) => p.id === seatAfter) + 1) % active.length].name}</strong>
-              </>
-            )}
-            .
-          </p>
+          <SeatPicker state={state} value={seatAfter} onChange={setAfter} />
         </div>
       )}
       <form
@@ -841,6 +897,8 @@ function PlayerSheet({
   onClose,
   onEditCharacter,
   run,
+  phoneLinked = false,
+  onUnlink,
 }: {
   player: PlayerState;
   seat: number;
@@ -848,9 +906,12 @@ function PlayerSheet({
   onClose: () => void;
   onEditCharacter: () => void;
   run: Run;
+  /** Il giocatore segue la partita dal suo telefono (ha preso il posto con "Sono io"). */
+  phoneLinked?: boolean;
+  onUnlink?: () => void;
 }) {
   const canLeave = canChangeTable(state);
-  const hasCharacter = useCharacter(player.name) !== null;
+  const hasCharacter = useCharacterFor(player.name) !== null;
   return (
     <Sheet open onClose={onClose} title={player.name}>
       <div className="flex items-center gap-4">
@@ -867,6 +928,17 @@ function PlayerSheet({
           </button>
         </div>
       </div>
+      {phoneLinked && (
+        <p className="mt-3 flex items-center gap-2 rounded-xl bg-sky-500/10 px-3 py-2 text-sm text-sky-200">
+          <Smartphone size={16} className="shrink-0" />
+          <span className="flex-1">Segue la partita dal suo telefono</span>
+          {onUnlink && (
+            <button onClick={onUnlink} className="rounded-full px-2 py-0.5 text-xs font-semibold text-sky-200 underline-offset-2 hover:underline">
+              Scollega
+            </button>
+          )}
+        </p>
+      )}
       <dl className="mt-4 grid grid-cols-3 gap-2 text-center">
         <Stat label="Mani vinte" value={player.stats.handsWon} />
         <Stat label="Prese" value={player.stats.tricks} />
@@ -887,6 +959,75 @@ function PlayerSheet({
           ? "Il saldo resta nei conti finali. Se è il mazziere, riprende la messa e il mazzo passa al prossimo."
           : "Si può lasciare il tavolo solo a piatto pulito."}
       </p>
+    </Sheet>
+  );
+}
+
+/** Il master fa sedere chi ha chiesto di unirsi dal telefono, scegliendo il posto nel giro. */
+function ApproveSheet({
+  request,
+  state,
+  run,
+  onClose,
+  onDone,
+}: {
+  request: JoinRequest;
+  state: GameState;
+  run: Run;
+  onClose: () => void;
+  onDone: (text: string) => void;
+}) {
+  const [after, setAfter] = useState<PlayerId | undefined>(defaultSeatAfter(state));
+  const [busy, setBusy] = useState(false);
+  const allowed = canChangeTable(state);
+  const full = activePlayers(state).length >= state.rules.maxPlayers;
+
+  async function approve() {
+    const online = getOnline();
+    if (!online) return;
+    setBusy(true);
+    try {
+      const playerId = newPlayerId();
+      const last = defaultSeatAfter(state);
+      const ok = await run({ type: "player_added", playerId, name: request.name, ...(after && after !== last ? { seatAfter: after } : {}) });
+      if (ok) {
+        // il telefono di chi ha chiesto vede l'approvazione e prende il posto da solo
+        await online.decideRequest(request.id, "approved", playerId);
+        onDone(`${request.name} si siede al tavolo`);
+        onClose();
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function reject() {
+    await getOnline()?.decideRequest(request.id, "rejected");
+    onDone(`Richiesta di ${request.name} rifiutata`);
+    onClose();
+  }
+
+  return (
+    <Sheet open onClose={onClose} title={`Fai sedere ${request.name}`}>
+      {!allowed ? (
+        <p className="rounded-xl bg-amber-500/15 p-3 text-sm text-amber-200">
+          Si può sedere solo a piatto pulito, quando nel piatto c&apos;è la sola messa. La richiesta resta in attesa.
+        </p>
+      ) : full ? (
+        <p className="rounded-xl bg-amber-500/15 p-3 text-sm text-amber-200">
+          Tavolo pieno ({state.rules.maxPlayers}): qualcuno deve uscire prima.
+        </p>
+      ) : (
+        <SeatPicker state={state} value={after} onChange={setAfter} />
+      )}
+      <div className="mt-5 flex gap-2">
+        <Button variant="ghost" className="flex-1" onClick={reject}>
+          Rifiuta
+        </Button>
+        <Button className="flex-1" disabled={!allowed || full || busy} onClick={approve}>
+          Fai sedere
+        </Button>
+      </div>
     </Sheet>
   );
 }

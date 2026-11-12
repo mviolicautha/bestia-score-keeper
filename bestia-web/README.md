@@ -26,6 +26,9 @@ senza configurazione l'app salva tutto in locale.
 | `src/app/page.tsx` | Elenco partite e creazione. |
 | `src/app/partita/[id]/` | Schermata del master: giocatori, passa, gioca mano (vincitori → bestie), società, messa, cronologia, fine partita. |
 | `src/app/tv/[id]/` | Vista da proiettare: classifica, andamento, piatto, ultime mani; a fine partita mostra chi paga chi. |
+| `src/app/g/[code]/` | Pagina che si apre dal QR del master: "Sono io" (prendo il posto di un giocatore) o "Chiedo di sedermi" (solo online). |
+| `src/app/gioca/[id]/` | Vista del giocatore sul proprio telefono: saldo, avvisi (tocca a te fare le carte, ultima mano), tavolo, conti finali personali. |
+| `src/lib/online.ts` | Posti presi, richieste di sedersi e profili su Supabase; `useOnline.ts` li tiene aggiornati in tempo reale. |
 | `src/lib/avatar/` | Personaggi dei giocatori: `catalog.json` (generato da `../avatar-pipeline`, non modificarlo a mano), regole di composizione (`catalog.ts`) e salvataggio per nome (`store.ts`). |
 | `src/components/Character*.tsx` | Disegno del personaggio a livelli sovrapposti ed editor (scheda giocatore → "Crea personaggio"). |
 | `public/avatars/` | Immagini dei pezzi (generate da `npm run export` in `../avatar-pipeline`). |

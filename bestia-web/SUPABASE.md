@@ -25,6 +25,10 @@ I giocatori entrano senza registrarsi, come "ospiti anonimi".
 Lo script crea partite, eventi, posti e richieste per unirsi, insieme alle regole di
 sicurezza: solo il master scrive la sua partita, tutti gli altri possono solo leggerla.
 
+Poi, sempre nel SQL Editor, esegui anche [`supabase/migrations/0002_giocatori.sql`](supabase/migrations/0002_giocatori.sql)
+(una riga): serve perché i personaggi che i giocatori creano sul proprio telefono compaiano
+subito su master e TV. Gli script vanno eseguiti **in ordine e una volta sola**.
+
 ## 4. Copia URL e chiave pubblica
 Vai in **Project Settings → API Keys** (o **Data API**) e copia:
 - **Project URL**, del tipo `https://abcdefgh.supabase.co`;
