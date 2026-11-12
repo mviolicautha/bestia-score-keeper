@@ -123,6 +123,18 @@
       ]
     },
     {
+      "id": "back_curioso",
+      "category": "back",
+      "label": "Curioso",
+      "src": "/avatars/back/back_curioso.webp",
+      "box": [
+        0.178,
+        0.23,
+        0.836,
+        1
+      ]
+    },
+    {
       "id": "back_dragon_wings",
       "category": "back",
       "label": "Ali di drago",
@@ -168,18 +180,6 @@
         0,
         1,
         0.92
-      ]
-    },
-    {
-      "id": "back_stasi",
-      "category": "back",
-      "label": "Stasi",
-      "src": "/avatars/back/back_stasi.webp",
-      "box": [
-        0.178,
-        0.23,
-        0.836,
-        1
       ]
     },
     {
@@ -307,18 +307,6 @@
       "category": "outfit",
       "label": "Maglia del Palermo",
       "src": "/avatars/outfit/outfit_palermo.webp",
-      "box": [
-        0.195,
-        0.479,
-        0.807,
-        1
-      ]
-    },
-    {
-      "id": "outfit_pigia_vina",
-      "category": "outfit",
-      "label": "Maglia Pigia Vina",
-      "src": "/avatars/outfit/outfit_pigia_vina.webp",
       "box": [
         0.195,
         0.479,
