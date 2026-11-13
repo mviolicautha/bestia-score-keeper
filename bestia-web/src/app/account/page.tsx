@@ -12,6 +12,7 @@ import { Character, CROPS } from "@/components/Character";
 import { CharacterEditor } from "@/components/CharacterEditor";
 import { ConfirmDialog, Toast, type ConfirmRequest, type ToastMessage } from "@/components/ui";
 import { Disclaimer } from "@/components/Disclaimer";
+import { useFestive } from "@/lib/season";
 
 const inputClass =
   "mt-1 w-full rounded-xl bg-night-900 px-4 py-3 outline-none ring-1 ring-white/10 focus:ring-gold-400 aria-[invalid=true]:ring-red-400";
@@ -45,8 +46,38 @@ export default function AccountPage() {
         <SignIn accounts={accounts} />
       )}
 
+      <FestiveToggle />
       <Disclaimer className="mt-10" />
     </main>
+  );
+}
+
+/** Nella settimana di Natale: si può spegnere il tema natalizio su questo dispositivo. */
+function FestiveToggle() {
+  const { inSeason, mode, setMode } = useFestive();
+  if (!inSeason) return null;
+  const on = mode !== "off";
+  return (
+    <section className="mt-10">
+      <h2 className="mb-2 text-xs font-semibold uppercase tracking-widest text-white/40">Aspetto</h2>
+      <label className="flex cursor-pointer items-center gap-3 rounded-2xl bg-night-800 p-4 ring-1 ring-white/5">
+        <span className="min-w-0 flex-1">
+          <span className="block font-semibold">❄ Tema natalizio</span>
+          <span className="block text-xs text-white/45">Lucine e neve dal 21 al 27 dicembre, solo su questo dispositivo.</span>
+        </span>
+        <input
+          type="checkbox"
+          role="switch"
+          checked={on}
+          onChange={(e) => setMode(e.target.checked ? "auto" : "off")}
+          className="peer sr-only"
+        />
+        <span
+          aria-hidden
+          className="relative h-7 w-12 shrink-0 rounded-full bg-night-600 transition after:absolute after:left-1 after:top-1 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition peer-checked:bg-gold-400 peer-checked:after:translate-x-5 peer-focus-visible:ring-2 peer-focus-visible:ring-gold-400"
+        />
+      </label>
+    </section>
   );
 }
 
