@@ -23,7 +23,15 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="it">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>{children}</body>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        {children}
+        {/* Con la status bar "black-translucent" la pagina scorre sotto l'isola e l'orologio:
+            questa fascia fissa, alta quanto l'area sicura in alto, li tiene su sfondo pieno. */}
+        <div
+          aria-hidden
+          className="pointer-events-none fixed inset-x-0 top-0 z-[45] h-[env(safe-area-inset-top)] bg-night-900"
+        />
+      </body>
     </html>
   );
 }
