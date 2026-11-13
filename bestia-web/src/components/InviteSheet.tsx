@@ -7,11 +7,28 @@ import { Check, Copy, Share2 } from "lucide-react";
 import { Button, Sheet } from "./Sheet";
 
 /** Link d'invito di una partita: lo apre chi inquadra il QR. */
-export const inviteUrl = (code: string) => `${window.location.origin}/g/${code}`;
+export const inviteUrl = (code: string, path = "/g/") => `${window.location.origin}${path}${code}`;
 
 /** Il master mostra il QR (o detta il codice): i giocatori si uniscono dal proprio telefono. */
-export function InviteSheet({ code, title, onClose }: { code: string; title: string; onClose: () => void }) {
-  const url = inviteUrl(code);
+export function InviteSheet({
+  code,
+  title,
+  onClose,
+  path,
+  heading = "Invita giocatori",
+  intro,
+  shareText = `Unisciti alla partita (codice ${code})`,
+}: {
+  code: string;
+  title: string;
+  onClose: () => void;
+  /** Percorso del link d'invito (default: partite, "/g/"). */
+  path?: string;
+  heading?: string;
+  intro?: React.ReactNode;
+  shareText?: string;
+}) {
+  const url = inviteUrl(code, path);
   const [qr, setQr] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -38,10 +55,14 @@ export function InviteSheet({ code, title, onClose }: { code: string; title: str
   const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
 
   return (
-    <Sheet open onClose={onClose} title="Invita giocatori">
+    <Sheet open onClose={onClose} title={heading}>
       <p className="text-sm text-white/70">
-        Inquadrate il QR con la fotocamera del telefono: ognuno tocca il suo nome (&quot;Sono io&quot;) e vede la partita in diretta.
-        Chi non è ancora al tavolo può chiedere di sedersi.
+        {intro ?? (
+          <>
+            Inquadrate il QR con la fotocamera del telefono: ognuno tocca il suo nome (&quot;Sono io&quot;) e vede la partita in
+            diretta. Chi non è ancora al tavolo può chiedere di sedersi.
+          </>
+        )}
       </p>
       <div className="mx-auto mt-4 w-56 overflow-hidden rounded-2xl bg-white p-2 sm:w-64">
         {qr ? (
@@ -62,7 +83,7 @@ export function InviteSheet({ code, title, onClose }: { code: string; title: str
         {canShare && (
           <Button
             className="flex flex-1 items-center justify-center gap-2 py-2.5 text-sm"
-            onClick={() => navigator.share({ title: `Bestia: ${title}`, text: `Unisciti alla partita (codice ${code})`, url }).catch(() => {})}
+            onClick={() => navigator.share({ title: `Bestia: ${title}`, text: shareText, url }).catch(() => {})}
           >
             <Share2 size={17} /> Condividi
           </Button>

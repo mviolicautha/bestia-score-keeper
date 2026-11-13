@@ -34,6 +34,7 @@ Poi, sempre nel SQL Editor, esegui anche gli altri script in [`supabase/migratio
   e sulla TV (senza, li vede solo il master).
 - `0005_account.sql`: account con username e password (vedi il passo 6), e "Elimina account" che non cancella le
   partite condotte da master.
+- `0006_compagnie.sql`: compagnie di amici con codice invito, membri (anche ospiti senza account) e amministratori.
 
 ## 4. Copia URL e chiave pubblica
 Vai in **Project Settings → API Keys** (o **Data API**) e copia:
