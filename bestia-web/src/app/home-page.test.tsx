@@ -36,6 +36,28 @@ describe("home", () => {
     expect((await getRepository().loadEvents(games[0].id))[0].event).toEqual({ type: "game_started", baseBetCents: 60 });
   });
 
+  it("nella settimana di Natale accende il tema, a meno che non sia stato spento", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date(2026, 11, 24));
+      render(<Home />);
+      expect(await screen.findByText(/Buone feste/)).toBeInTheDocument();
+      cleanup();
+
+      window.localStorage.setItem("bestia:pref:festive", "off");
+      render(<Home />);
+      expect(await screen.findByText("♠ Bestia")).toBeInTheDocument();
+      cleanup();
+
+      window.localStorage.clear();
+      vi.setSystemTime(new Date(2026, 11, 28));
+      render(<Home />);
+      expect(await screen.findByText("♠ Bestia")).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("elenca le partite con il riepilogo ed elimina solo dopo conferma", async () => {
     const repo = getRepository();
     const id = await repo.createGame("Sabato", 30);

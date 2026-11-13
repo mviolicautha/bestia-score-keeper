@@ -13,6 +13,8 @@ import { ConfirmDialog, type ConfirmRequest } from "@/components/ui";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { normalizeCode } from "@/lib/online";
 import { Disclaimer } from "@/components/Disclaimer";
+import { FestiveLights, Snowfall } from "@/components/Festive";
+import { useFestive } from "@/lib/season";
 
 const BET_STEP = 30;
 const INSTALL_HINT_KEY = "bestia:install-hint-dismissed";
@@ -85,6 +87,7 @@ export default function Home() {
     };
   }, [registered]);
   const showInstall = installHint && !installDismissed;
+  const festive = useFestive().active;
 
   const refresh = useCallback(() => loadCards().then(setGames), []);
 
@@ -112,10 +115,12 @@ export default function Home() {
   const ended = games?.filter((g) => g.status === "ended") ?? [];
 
   return (
-    <main className="mx-auto min-h-dvh max-w-lg px-4 pb-10 pt-[max(1.5rem,env(safe-area-inset-top))]">
+    <main className="relative z-10 mx-auto min-h-dvh max-w-lg px-4 pb-10 pt-[max(1.5rem,env(safe-area-inset-top))]">
+      {festive && <Snowfall />}
+      {festive && <FestiveLights />}
       <header className="mb-6 flex items-center gap-3">
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gold-400">♠ Bestia</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gold-400">{festive ? "❄ Bestia · Buone feste" : "♠ Bestia"}</p>
           <h1 className="truncate text-2xl font-black leading-tight">Le tue partite</h1>
         </div>
         <AccountLink />
