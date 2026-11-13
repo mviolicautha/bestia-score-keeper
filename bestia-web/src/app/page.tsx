@@ -4,7 +4,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
-import { ChevronRight, Plus, Share, Trash2, X } from "lucide-react";
+import { ChevronRight, Plus, Share, Trash2, UserRound, X } from "lucide-react";
+import { useAccount } from "@/lib/useAccount";
 import { formatCents, replay, type GameState } from "@/engine";
 import { getRepository, type GameMeta } from "@/lib/repository";
 import { Button, Sheet } from "@/components/Sheet";
@@ -88,10 +89,11 @@ export default function Home() {
     <main className="mx-auto min-h-dvh max-w-lg px-4 pb-10 pt-[max(1.5rem,env(safe-area-inset-top))]">
       <header className="mb-6 flex items-center gap-4">
         <Image src="/icons/icon-192.png" alt="" width={56} height={56} className="rounded-2xl shadow-lg ring-1 ring-white/10" priority />
-        <div>
+        <div className="min-w-0 flex-1">
           <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gold-400">♠ Bestia</p>
           <h1 className="text-3xl font-black leading-tight">Le tue partite</h1>
         </div>
+        <AccountLink />
       </header>
 
       {showInstall && (
@@ -217,6 +219,23 @@ function Section({ title, games, onDelete }: { title: string; games: GameCard[];
         })}
       </ul>
     </section>
+  );
+}
+
+/** In alto a destra: "Accedi" per gli ospiti, il proprio nome per chi ha l'account. */
+function AccountLink() {
+  const { account, accounts } = useAccount();
+  if (!accounts) return null;
+  const label = account?.username ? account.displayName || account.username : "Accedi";
+  return (
+    <Link
+      href="/account"
+      className="flex max-w-[8rem] shrink-0 items-center gap-1.5 rounded-full bg-night-800 py-2 pl-2.5 pr-3 text-sm font-semibold ring-1 ring-white/10 hover:bg-night-600"
+      aria-label={account?.username ? `Il tuo account (${label})` : "Accedi o crea un account"}
+    >
+      <UserRound size={18} className="shrink-0 text-white/60" />
+      <span className="truncate">{account === undefined ? "…" : label}</span>
+    </Link>
   );
 }
 

@@ -32,6 +32,8 @@ Poi, sempre nel SQL Editor, esegui anche gli altri script in [`supabase/migratio
   non viene mai registrata due volte (l'app funziona anche senza, ma senza questo controllo).
 - `0004_personaggi_condivisi.sql`: i personaggi creati sul telefono del master si vedono anche sui telefoni dei giocatori
   e sulla TV (senza, li vede solo il master).
+- `0005_account.sql`: account con username e password (vedi il passo 6), e "Elimina account" che non cancella le
+  partite condotte da master.
 
 ## 4. Copia URL e chiave pubblica
 Vai in **Project Settings → API Keys** (o **Data API**) e copia:
@@ -53,6 +55,25 @@ Puoi mandarle in chat a Claude, oppure fare da solo:
 
 `.env.local` resta solo sul tuo computer: non va su git.
 
+## 6. Account con username e password
+Gli account non usano email vere: l'app ricava dall'username un indirizzo finto (`nome@giocatori.bestia-score-keeper.vercel.app`)
+che non riceve posta. Perché funzioni, Supabase non deve chiedere di confermarlo:
+
+**Authentication → Sign In / Providers → Email** → spegni **Confirm email** → **Save**.
+
+Se resta acceso, la registrazione si ferma con un messaggio che rimanda qui (e Supabase proverebbe a spedire una mail
+all'indirizzo finto).
+
+**Password dimenticata**: chi è ancora collegato sul suo telefono la cambia dal profilo, senza quella vecchia.
+Altrimenti la reimposti tu dal **SQL Editor** (non usare "Send password recovery" della dashboard: manderebbe una mail
+all'indirizzo finto). Sostituisci username e password temporanea, esegui, comunicagliela: poi la cambierà dal profilo.
+```sql
+update auth.users
+   set encrypted_password = extensions.crypt('password-temporanea', extensions.gen_salt('bf'))
+ where email = 'username@giocatori.bestia-score-keeper.vercel.app';
+```
+Deve rispondere *Success. 1 row affected*; con 0 righe l'username è scritto male.
+
 ## Prima di una serata
 - **Pausa del progetto**: nel piano gratuito Supabase mette in pausa i progetti dopo una settimana senza attività.
   Il sito su Vercel chiama ogni mattina `/api/keepalive` (vedi `vercel.json`), che fa una lettura leggera e lo tiene
@@ -63,8 +84,8 @@ Puoi mandarle in chat a Claude, oppure fare da solo:
 
 ## Da sapere
 - **Le partite salvate in locale non vengono trasferite**: con Supabase attivo l'app parte con l'elenco vuoto.
-- **Chi è il master**: il dispositivo, cioè l'utente ospite, che crea la partita. Se cambi telefono o cancelli i dati
-  del browser, perdi il ruolo di master sulle partite vecchie. Lo risolveremo con gli account, che permetteranno di
-  collegare email, Google o Apple all'utente ospite.
+- **Chi è il master**: l'utente che crea la partita. Senza account è l'ospite anonimo del telefono: se cambi telefono o
+  cancelli i dati del browser, perdi il ruolo di master sulle partite vecchie. Con un account (passo 6) le ritrovi
+  entrando con username e password da qualsiasi dispositivo.
 - **Per usarla durante una serata** l'app va pubblicata online, per esempio su Vercel (gratuito). Oggi il server di
   sviluppo si raggiunge solo dalla stessa rete Wi-Fi.
