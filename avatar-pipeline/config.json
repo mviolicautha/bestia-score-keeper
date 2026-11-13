@@ -83,12 +83,30 @@
     "hat_bauli": "Carta del Bauli",
     "hat_nido": "Nido con anatra",
     "hat_finanziere": "Finanziere",
-    "back_gabrosa": "Gabrosa"
+    "back_gabrosa": "Gabrosa",
+    "outfit_milo": "Gilet patchwork",
+    "costume_lupo_lucio": "Lupo Lucio",
+    "hat_jiad": "Passamontagna",
+    "mouth_albania": "Bandana Albania",
+    "hat_shark": "Squalo",
+    "outfit_tshirt": "Tutto sotto controllo",
+    "hat_carbon_helmet": "Casco in carbonio",
+    "back_lgbt_flag": "Bandiera arcobaleno",
+    "hat_military_helmet": "Elmetto militare",
+    "outfit_grandma": "Cardigan della nonna",
+    "extra_pig": "Maialino",
+    "back_girls": "Ragazze",
+    "back_angry_girls": "Ragazze arrabbiate",
+    "back_dragon": "Drago",
+    "back_smooth": "Liscio",
+    "back_with_the_guys": "Con i ragazzi",
+    "hat_straw_hat": "Cappello di paglia"
   },
 
   "skip": {
     "facial_santa_beard": "nelle zone in ombra la barba ha lo stesso grigio della maglietta: rifare col passaggio 2 (solo barba su magenta)",
-    "hat_hood_white": "nell'immagine generata sono sparite le orecchie, che spuntano ai lati del cappuccio: rigenerare con il cappuccio che copre le orecchie"
+    "hat_hood_white": "nell'immagine generata sono sparite le orecchie, che spuntano ai lati del cappuccio: rigenerare con il cappuccio che copre le orecchie",
+    "glasses_sunglasses_with_fake_nose": "il naso finto ha lo stesso colore della pelle e Nano Banana ha ritoccato tutto il viso: rigenerare chiedendo un naso finto di plastica di un colore diverso dalla pelle, viso identico"
   },
 
   "items": {
@@ -103,6 +121,8 @@
     "hat_muratozoo": { "hidesHair": "all" },
     "costume_olianti": { "hidesHair": "top" },
     "costume_book_of_ra": { "hidesHair": "top" },
-    "costume_gnomo": { "hidesHair": "top" }
+    "costume_gnomo": { "hidesHair": "top" },
+    "extra_pig": { "thr": 16, "shirtShadow": false, "holeMax": 200000 },
+    "hat_jiad": { "hidesHair": "all", "hidesFace": true }
   }
 }
