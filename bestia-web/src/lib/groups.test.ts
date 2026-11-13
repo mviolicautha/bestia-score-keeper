@@ -88,7 +88,7 @@ describe("compagnie", () => {
     const { svc } = fake(tables, (fn) => ({ data: null, error: errors[fn] }));
     await expect(svc.leave("g1")).rejects.toThrow(/almeno un amministratore/);
     await expect(svc.addMember("g1", "Anna")).rejects.toThrow(/già qualcuno con questo nome/);
-    await expect(svc.rename("g1", "x")).rejects.toThrow(/0006_compagnie/);
+    await expect(svc.rename("g1", "x")).rejects.toThrow("supabase/migrations");
   });
 
   it("l'anteprima dell'invito restituisce null se il codice non esiste", async () => {

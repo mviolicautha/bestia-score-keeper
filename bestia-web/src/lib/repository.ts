@@ -21,6 +21,8 @@ export interface GameMeta {
   createdAt: string;
   updatedAt: string;
   status: GameStatus;
+  /** Compagnia a cui appartiene (solo con Supabase; assente per le partite al volo). */
+  groupId?: string | null;
 }
 
 export interface StoredEvent {
@@ -31,7 +33,8 @@ export interface StoredEvent {
 export interface GameRepository {
   listGames(): Promise<GameMeta[]>;
   getGame(gameId: string): Promise<GameMeta | null>;
-  createGame(title: string, baseBetCents: number): Promise<string>;
+  /** `groupId`: compagnia della partita (solo con Supabase, ignorato in locale). */
+  createGame(title: string, baseBetCents: number, groupId?: string | null): Promise<string>;
   loadEvents(gameId: string): Promise<StoredEvent[]>;
   /**
    * Aggiunge un evento. Con `expectedCount` (quanti eventi ci sono ora secondo chi salva)
@@ -113,7 +116,8 @@ class LocalGameRepository implements GameRepository {
     return read<GameMeta[]>(GAMES_KEY, []).find((g) => g.id === gameId) ?? null;
   }
 
-  async createGame(title: string, baseBetCents: number) {
+  async createGame(title: string, baseBetCents: number, _groupId?: string | null) {
+    void _groupId; // in locale non ci sono compagnie
     const id = newId();
     const now = new Date().toISOString();
     const games = read<GameMeta[]>(GAMES_KEY, []);

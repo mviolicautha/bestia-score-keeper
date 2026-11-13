@@ -34,7 +34,9 @@ function fake(tables: Record<string, Record<string, unknown>[]>, failInsert?: { 
     };
     return q;
   };
-  return { sb: { from } as unknown as SupabaseClient, writes };
+  // watch_game (0007): nei test le partite sono già tutte visibili, quindi "non esiste"
+  const rpc = async () => ({ data: null, error: null });
+  return { sb: { from, rpc } as unknown as SupabaseClient, writes };
 }
 
 const me = () => Promise.resolve("u-io");
@@ -47,7 +49,7 @@ describe("giocatori online", () => {
   it("trova la partita dal codice", async () => {
     const f = fake({ games: [{ id: "g1", code: "KX7P2", title: "Venerdì", master_id: "u-master" }] });
     const s = new OnlineService(f.sb, me);
-    expect(await s.findGameByCode("kx7p2")).toEqual({ id: "g1", code: "KX7P2", title: "Venerdì", masterId: "u-master", characters: {} });
+    expect(await s.findGameByCode("kx7p2")).toEqual({ id: "g1", code: "KX7P2", title: "Venerdì", masterId: "u-master", characters: {}, groupId: null });
     expect(await s.findGameByCode("NOPE1")).toBeNull();
   });
 
@@ -112,6 +114,6 @@ describe("personaggi condivisi dal master (0004_personaggi_condivisi.sql)", () =
 
   it("legge la partita anche se la colonna non c'è ancora", async () => {
     const { sb } = fake({ games: [{ id: "g1", code: "AAAAA", title: "T", master_id: "m" }] });
-    expect(await new OnlineService(sb, me).getGame("g1")).toEqual({ id: "g1", code: "AAAAA", title: "T", masterId: "m", characters: {} });
+    expect(await new OnlineService(sb, me).getGame("g1")).toEqual({ id: "g1", code: "AAAAA", title: "T", masterId: "m", characters: {}, groupId: null });
   });
 });

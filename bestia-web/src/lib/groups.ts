@@ -50,6 +50,14 @@ export interface InvitePreview {
   unclaimed: { id: string; name: string; character: CharacterConfig | null }[];
 }
 
+export interface GroupGame {
+  id: string;
+  title: string;
+  status: "not_started" | "in_progress" | "ended";
+  updatedAt: string;
+  masterId: string | null;
+}
+
 export class GroupError extends Error {
   constructor(
     message: string,
@@ -72,14 +80,16 @@ const MESSAGES: Record<string, string> = {
   needs_account: "Può diventare amministratore solo chi ha un account.",
   last_admin: "Deve restare almeno un amministratore: prima nominane un altro.",
   not_found: "Non esiste più.",
+  not_master: "Solo chi conduce la partita può farlo.",
+  not_in_group: "Questa persona non è nella compagnia della partita.",
 };
 
 function friendly(error: { code?: string; message: string }): GroupError {
   for (const [code, text] of Object.entries(MESSAGES)) if (error.message.includes(code)) return new GroupError(text, code);
   if (error.code === "23505") return new GroupError("C'è già qualcuno con questo nome nella compagnia.", "name_taken");
   if (error.code === "23514") return new GroupError("Nome troppo lungo o vuoto.", "invalid_name");
-  if (error.code === "PGRST202" || error.code === "42P01")
-    return new GroupError("Il database non è aggiornato per le compagnie: va eseguito 0006_compagnie.sql (vedi SUPABASE.md).", "migration_missing");
+  if (error.code === "PGRST202" || error.code === "42P01" || error.code === "42703" || error.code === "PGRST205")
+    return new GroupError("Il database non è aggiornato: vanno eseguiti gli script in supabase/migrations (vedi SUPABASE.md).", "migration_missing");
   if (/Failed to fetch|NetworkError/i.test(error.message)) return new GroupError("Nessuna connessione.", "offline");
   return new GroupError(error.message, error.code ?? "unknown");
 }
@@ -216,6 +226,39 @@ export class GroupService {
   }
   regenerateCode(groupId: string) {
     return this.rpc<string>("regenerate_group_code", { p_group: groupId });
+  }
+
+  /** Partite della compagnia, dalla più recente. */
+  async listGames(groupId: string): Promise<GroupGame[]> {
+    await this.user();
+    const { data, error } = await this.sb
+      .from("games")
+      .select("id, title, status, updated_at, master_id")
+      .eq("group_id", groupId)
+      .order("updated_at", { ascending: false });
+    if (error) throw friendly(error);
+    return ((data ?? []) as { id: string; title: string; status: GroupGame["status"]; updated_at: string; master_id: string | null }[]).map((g) => ({
+      id: g.id,
+      title: g.title,
+      status: g.status,
+      updatedAt: g.updated_at,
+      masterId: g.master_id,
+    }));
+  }
+
+  /** Giocatori della partita legati ai membri della compagnia: player_id → member_id. */
+  async gamePlayers(gameId: string): Promise<Record<string, string>> {
+    await this.user();
+    const { data, error } = await this.sb.from("game_players").select("player_id, member_id").eq("game_id", gameId);
+    if (error) throw friendly(error);
+    const out: Record<string, string> = {};
+    for (const r of (data ?? []) as { player_id: string; member_id: string | null }[]) if (r.member_id) out[r.player_id] = r.member_id;
+    return out;
+  }
+
+  /** Il master lega un giocatore a un membro (se ha l'account, il suo telefono prende il posto). */
+  linkPlayer(gameId: string, playerId: string, memberId: string) {
+    return this.rpc<void>("link_game_player", { p_game: gameId, p_player: playerId, p_member: memberId });
   }
 
   /** Avvisa quando cambiano i membri della compagnia (entrate, uscite, nomi, ruoli). */

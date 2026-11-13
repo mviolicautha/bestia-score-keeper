@@ -21,6 +21,8 @@ export interface OnlineGame {
    * li vedono anche i telefoni e la TV. Vuoto finché non c'è 0004_personaggi_condivisi.sql.
    */
   characters?: Record<string, CharacterConfig>;
+  /** Compagnia della partita (null per le partite al volo). */
+  groupId?: string | null;
 }
 
 interface GameRow {
@@ -29,9 +31,10 @@ interface GameRow {
   title: string;
   master_id: string;
   characters?: Record<string, CharacterConfig> | null;
+  group_id?: string | null;
 }
 // select("*"): funziona anche se la colonna dei personaggi non è ancora stata aggiunta
-const toGame = (r: GameRow): OnlineGame => ({ id: r.id, code: r.code, title: r.title, masterId: r.master_id, characters: r.characters ?? {} });
+const toGame = (r: GameRow): OnlineGame => ({ id: r.id, code: r.code, title: r.title, masterId: r.master_id, characters: r.characters ?? {}, groupId: r.group_id ?? null });
 
 export interface SeatClaim {
   playerId: string;
@@ -92,14 +95,29 @@ export class OnlineService {
 
   async findGameByCode(code: string): Promise<OnlineGame | null> {
     await this.user();
-    const row = check(await this.sb.from("games").select("*").eq("code", normalizeCode(code)).maybeSingle(), "Codice partita") as GameRow | null;
-    return row ? toGame(row) : null;
+    const clean = normalizeCode(code);
+    const row = check(await this.sb.from("games").select("*").eq("code", clean).maybeSingle(), "Codice partita") as GameRow | null;
+    if (row) return toGame(row);
+    // non la vedo ancora: con il codice divento spettatore (0007_partite_compagnie.sql)
+    const id = await this.watch({ p_code: clean });
+    return id ? this.getGame(id) : null;
   }
 
   async getGame(gameId: string): Promise<OnlineGame | null> {
     await this.user();
-    const row = check(await this.sb.from("games").select("*").eq("id", gameId).maybeSingle(), "Partita") as GameRow | null;
+    const read = async () => check(await this.sb.from("games").select("*").eq("id", gameId).maybeSingle(), "Partita") as GameRow | null;
+    const row = (await read()) ?? ((await this.watch({ p_id: gameId })) ? await read() : null);
     return row ? toGame(row) : null;
+  }
+
+  /** Diventa spettatore di una partita aperta con codice o link. null se non esiste (o database prima di 0007). */
+  private async watch(args: { p_id: string } | { p_code: string }): Promise<string | null> {
+    const { data, error } = await this.sb.rpc("watch_game", args);
+    if (error) {
+      if (error.code === "PGRST202" || /could not find the function/i.test(error.message)) return null;
+      throw new Error(`Partita: ${error.message}`);
+    }
+    return (data as string | null) ?? null;
   }
 
   /**

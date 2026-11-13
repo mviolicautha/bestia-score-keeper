@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { ChevronRight, Plus, Share, Trash2, UserRound, Users, X } from "lucide-react";
 import { useAccount } from "@/lib/useAccount";
+import { getGroups, type GroupSummary } from "@/lib/groups";
 import { formatCents, replay, type GameState } from "@/engine";
 import { getRepository, type GameMeta } from "@/lib/repository";
 import { Button, Sheet } from "@/components/Sheet";
@@ -58,6 +59,32 @@ export default function Home() {
   const [confirm, setConfirm] = useState<ConfirmRequest | null>(null);
   const [installDismissed, setInstallDismissed] = useState(false);
   const installHint = useSyncExternalStore(noSubscribe, shouldShowInstallHint, () => false);
+  // compagnie in cui si può creare la partita (solo con un account)
+  const { account } = useAccount();
+  const [groups, setGroups] = useState<GroupSummary[]>([]);
+  const [groupId, setGroupId] = useState<string>("");
+  const registered = !!account?.username;
+  useEffect(() => {
+    const service = getGroups();
+    if (!service || !registered) return;
+    let alive = true;
+    service.listMine().then(
+      (list) => {
+        if (!alive) return;
+        setGroups(list);
+        // /?compagnia=<id>: arrivo da "Nuova partita" nella pagina di una compagnia
+        const wanted = new URLSearchParams(window.location.search).get("compagnia");
+        if (wanted && list.some((g) => g.id === wanted)) {
+          setGroupId(wanted);
+          setCreating(true);
+        }
+      },
+      () => {},
+    );
+    return () => {
+      alive = false;
+    };
+  }, [registered]);
   const showInstall = installHint && !installDismissed;
 
   const refresh = useCallback(() => loadCards().then(setGames), []);
@@ -69,7 +96,7 @@ export default function Home() {
   const defaultTitle = `Bestia del ${new Date().toLocaleDateString("it-IT")}`;
 
   async function create() {
-    const id = await getRepository().createGame(title.trim() || defaultTitle, bet);
+    const id = await getRepository().createGame(title.trim() || defaultTitle, bet, groupId || null);
     router.push(`/partita/${id}`);
   }
 
@@ -154,6 +181,29 @@ export default function Home() {
           placeholder={defaultTitle}
           className="mt-1 w-full rounded-xl bg-night-900 px-4 py-3 outline-none ring-1 ring-white/10 focus:ring-blue-500"
         />
+        {groups.length > 0 && (
+          <>
+            <label className="mt-5 block text-sm text-white/60" htmlFor="group">
+              Compagnia
+            </label>
+            <select
+              id="group"
+              value={groupId}
+              onChange={(e) => setGroupId(e.target.value)}
+              className="mt-1 w-full rounded-xl bg-night-900 px-4 py-3 outline-none ring-1 ring-white/10 focus:ring-blue-500"
+            >
+              <option value="">Nessuna: partita al volo</option>
+              {groups.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-white/40">
+              {groupId ? "La vedranno tutti i membri: i giocatori si scelgono tra loro." : "La vedi solo tu e chi ha il codice."}
+            </p>
+          </>
+        )}
         <p className="mt-5 text-sm text-white/60">Messa del mazziere</p>
         <div className="mt-1 flex items-center justify-between rounded-xl bg-night-900 p-2 ring-1 ring-white/10">
           <Button variant="secondary" className="w-14" disabled={bet <= BET_STEP} onClick={() => setBet(bet - BET_STEP)} aria-label="Diminuisci messa">

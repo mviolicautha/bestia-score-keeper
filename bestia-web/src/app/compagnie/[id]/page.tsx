@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, Crown, KeyRound, LogOut, Pencil, QrCode, RefreshCw, Trash2, Unlink, UserPlus } from "lucide-react";
-import { getGroups, type GroupDetail, type GroupMember } from "@/lib/groups";
+import { ChevronLeft, ChevronRight, Crown, KeyRound, LogOut, Pencil, Plus, QrCode, RefreshCw, Trash2, Unlink, UserPlus } from "lucide-react";
+import { getGroups, type GroupDetail, type GroupGame, type GroupMember } from "@/lib/groups";
 import { useAccount } from "@/lib/useAccount";
 import { Button, Sheet } from "@/components/Sheet";
 import { InviteSheet } from "@/components/InviteSheet";
@@ -19,6 +19,7 @@ export default function GroupPage() {
   const { account } = useAccount();
   const registered = !!account?.username;
   const [group, setGroup] = useState<GroupDetail | null | undefined>(undefined);
+  const [games, setGames] = useState<GroupGame[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const [confirm, setConfirm] = useState<ConfirmRequest | null>(null);
@@ -31,7 +32,9 @@ export default function GroupPage() {
   const load = useCallback(async () => {
     if (!groups) return;
     try {
-      setGroup(await groups.get(id));
+      const [detail, list] = await Promise.all([groups.get(id), groups.listGames(id).catch(() => null)]);
+      setGroup(detail);
+      setGames(list);
       setError(null);
     } catch (e) {
       setError(messageOf(e));
@@ -96,9 +99,42 @@ export default function GroupPage() {
         )}
       </div>
 
-      <Button className="mt-5 flex w-full items-center justify-center gap-2" onClick={() => setInviting(true)}>
-        <QrCode size={20} /> Invita nella compagnia
-      </Button>
+      <div className="mt-5 flex gap-2">
+        <Button className="flex flex-1 items-center justify-center gap-2" onClick={() => router.push(`/?compagnia=${g.id}`)}>
+          <Plus size={20} /> Nuova partita
+        </Button>
+        <Button variant="secondary" className="flex flex-1 items-center justify-center gap-2" onClick={() => setInviting(true)}>
+          <QrCode size={20} /> Invita
+        </Button>
+      </div>
+
+      {games && games.length > 0 && (
+        <section className="mt-7">
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-widest text-white/40">Partite</h2>
+          <ul className="space-y-2">
+            {games.map((game) => (
+              <li key={game.id}>
+                <Link
+                  href={game.masterId === account?.userId ? `/partita/${game.id}` : `/gioca/${game.id}`}
+                  className="flex items-center gap-3 rounded-2xl bg-night-800 p-3 pl-4 ring-1 ring-white/5 hover:bg-night-700"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-semibold">{game.title}</span>
+                    <span className="block text-xs text-white/45">
+                      {game.status === "ended" ? "Terminata" : "In corso"}
+                      {" · "}
+                      {new Date(game.updatedAt).toLocaleDateString("it-IT", { day: "numeric", month: "short" })}
+                      {game.masterId === account?.userId && " · la conduci tu"}
+                    </span>
+                  </span>
+                  {game.status !== "ended" && <span className="size-2 shrink-0 rounded-full bg-gain" aria-label="in corso" />}
+                  <ChevronRight size={18} className="shrink-0 text-white/30" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className="mt-7">
         <h2 className="mb-2 text-xs font-semibold uppercase tracking-widest text-white/40">Membri</h2>
