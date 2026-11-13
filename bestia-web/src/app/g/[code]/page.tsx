@@ -42,7 +42,7 @@ export default function JoinPage() {
         <div>
           <p className="text-lg font-bold text-white">Nessuna partita con il codice {normalizeCode(code)}</p>
           <p className="mt-2">Controlla il codice con il master, o inquadra di nuovo il QR.</p>
-          <Link href="/" className="mt-5 inline-block rounded-2xl bg-blue-600 px-5 py-3 font-bold text-white">
+          <Link href="/" className="mt-5 inline-block rounded-2xl bg-gold-400 px-5 py-3 font-bold text-night-950">
             Inserisci un altro codice
           </Link>
         </div>
@@ -197,7 +197,7 @@ function Join({ game }: { game: OnlineGame }) {
                 autoCapitalize="words"
                 placeholder="Il tuo nome"
                 aria-label="Il tuo nome"
-                className="min-w-0 flex-1 rounded-xl bg-night-900 px-4 py-3 outline-none ring-1 ring-white/10 focus:ring-blue-500"
+                className="min-w-0 flex-1 rounded-xl bg-night-900 px-4 py-3 outline-none ring-1 ring-white/10 focus:ring-gold-400"
               />
               <Button type="submit" disabled={!name.trim() || busy}>
                 Chiedi

@@ -154,11 +154,11 @@ function ChoiceButton({ selected, onClick, label, children }: { selected: boolea
       aria-label={label}
       onClick={onClick}
       className={`flex w-full items-center gap-3 rounded-2xl p-3 text-left ring-1 transition ${
-        selected ? "bg-blue-600/20 ring-blue-400" : "bg-night-800 ring-white/5 hover:bg-night-700"
+        selected ? "bg-gold-400/15 ring-gold-400" : "bg-night-800 ring-white/5 hover:bg-night-700"
       }`}
     >
       {children}
-      {selected && <Check size={20} className="text-blue-300" />}
+      {selected && <Check size={20} className="text-gold-400" />}
     </button>
   );
 }

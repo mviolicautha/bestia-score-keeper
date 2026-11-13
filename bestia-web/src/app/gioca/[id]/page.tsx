@@ -37,7 +37,7 @@ export default function PlayerPage() {
         <div>
           <p className="text-lg font-bold text-white">Non hai ancora preso un posto in questa partita</p>
           {info.game && (
-            <Link href={`/g/${info.game.code}`} className="mt-5 inline-block rounded-2xl bg-blue-600 px-5 py-3 font-bold text-white">
+            <Link href={`/g/${info.game.code}`} className="mt-5 inline-block rounded-2xl bg-gold-400 px-5 py-3 font-bold text-night-950">
               Scegli chi sei
             </Link>
           )}

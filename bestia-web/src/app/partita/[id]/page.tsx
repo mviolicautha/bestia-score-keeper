@@ -142,7 +142,7 @@ export default function GamePage() {
       <Centered>
         <div>
           <p>{game.error ?? "Partita non trovata."}</p>
-          <Link href="/" className="mt-4 inline-block rounded-2xl bg-blue-600 px-5 py-3 font-bold text-white">
+          <Link href="/" className="mt-4 inline-block rounded-2xl bg-gold-400 px-5 py-3 font-bold text-night-950">
             Torna alle partite
           </Link>
         </div>
@@ -888,7 +888,7 @@ function AddPlayerSheet({
           onChange={(e) => setValue(e.target.value)}
           placeholder="Nome"
           aria-label="Nome del giocatore"
-          className="min-w-0 flex-1 rounded-xl bg-night-900 px-4 py-3 outline-none ring-1 ring-white/10 focus:ring-blue-500"
+          className="min-w-0 flex-1 rounded-xl bg-night-900 px-4 py-3 outline-none ring-1 ring-white/10 focus:ring-gold-400"
         />
         <Button type="submit" disabled={!value.trim() || full}>
           Aggiungi
@@ -1010,7 +1010,7 @@ function TvSheet({ onClose, gameId }: { onClose: () => void; gameId: string }) {
         href={`/tv/${gameId}`}
         target="_blank"
         rel="noreferrer"
-        className="mt-4 block rounded-2xl bg-blue-600 py-3.5 text-center font-bold"
+        className="mt-4 block rounded-2xl bg-gold-400 py-3.5 text-center font-bold text-night-950"
       >
         Apri vista TV
       </a>

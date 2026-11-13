@@ -1,10 +1,9 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
-import { ChevronRight, History, Plus, Share, Trash2, UserRound, Users, X } from "lucide-react";
+import { History, Plus, Share, Trash2, UserRound, Users, X } from "lucide-react";
 import { useAccount } from "@/lib/useAccount";
 import { getGroups, type GroupSummary } from "@/lib/groups";
 import { formatCents, replay, type GameState } from "@/engine";
@@ -114,11 +113,10 @@ export default function Home() {
 
   return (
     <main className="mx-auto min-h-dvh max-w-lg px-4 pb-10 pt-[max(1.5rem,env(safe-area-inset-top))]">
-      <header className="mb-6 flex items-center gap-4">
-        <Image src="/icons/icon-192.png" alt="" width={56} height={56} className="rounded-2xl shadow-lg ring-1 ring-white/10" priority />
+      <header className="mb-6 flex items-center gap-3">
         <div className="min-w-0 flex-1">
           <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gold-400">♠ Bestia</p>
-          <h1 className="text-3xl font-black leading-tight">Le tue partite</h1>
+          <h1 className="truncate text-2xl font-black leading-tight">Le tue partite</h1>
         </div>
         <AccountLink />
       </header>
@@ -136,30 +134,41 @@ export default function Home() {
         </div>
       )}
 
-      <Button className="flex w-full items-center justify-center gap-2 py-4 text-lg" onClick={() => setCreating(true)}>
-        <Plus size={22} /> Nuova partita
-      </Button>
+      {/* La partita in corso è il motivo per cui si apre l'app: sta in cima, in grande. */}
+      {inProgress.length > 0 && (
+        <section aria-label="In corso" className="mb-3 space-y-3">
+          {inProgress.map((g) => (
+            <LiveCard key={g.id} game={g} onDelete={askDelete} />
+          ))}
+        </section>
+      )}
+
+      {/* Un solo bottone dorato per schermata: se c'è già una partita in corso, "Nuova" fa un passo indietro. */}
+      {inProgress.length > 0 ? (
+        <button
+          onClick={() => setCreating(true)}
+          className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-white/25 py-3.5 font-bold text-white/85 transition hover:border-gold-400/60 hover:text-white active:scale-[0.98]"
+        >
+          <Plus size={20} /> Nuova partita
+        </button>
+      ) : (
+        <Button className="flex w-full items-center justify-center gap-2 py-4 text-lg" onClick={() => setCreating(true)}>
+          <Plus size={22} /> Nuova partita
+        </Button>
+      )}
 
       {isSupabaseConfigured && <JoinByCode />}
       {isSupabaseConfigured && (
-        <Link
-          href="/compagnie"
-          className="mt-3 flex items-center gap-3 rounded-2xl bg-night-800 p-3 pl-4 ring-1 ring-white/5 hover:bg-night-700"
-        >
-          <Users size={20} className="text-white/60" />
-          <span className="flex-1 font-semibold">Le tue compagnie</span>
-          <ChevronRight size={18} className="text-white/30" />
-        </Link>
-      )}
-      {isSupabaseConfigured && (
-        <Link
-          href="/storico"
-          className="mt-2 flex items-center gap-3 rounded-2xl bg-night-800 p-3 pl-4 ring-1 ring-white/5 hover:bg-night-700"
-        >
-          <History size={20} className="text-white/60" />
-          <span className="flex-1 font-semibold">Le mie partite giocate</span>
-          <ChevronRight size={18} className="text-white/30" />
-        </Link>
+        <nav className="mt-3 grid grid-cols-2 gap-2">
+          <Link href="/compagnie" className="flex items-center gap-2.5 rounded-2xl bg-night-800 p-3.5 ring-1 ring-white/5 hover:bg-night-700">
+            <Users size={20} className="shrink-0 text-gold-400" />
+            <span className="min-w-0 truncate font-semibold">Compagnie</span>
+          </Link>
+          <Link href="/storico" className="flex items-center gap-2.5 rounded-2xl bg-night-800 p-3.5 ring-1 ring-white/5 hover:bg-night-700">
+            <History size={20} className="shrink-0 text-gold-400" />
+            <span className="min-w-0 truncate font-semibold">Storico</span>
+          </Link>
+        </nav>
       )}
 
       {games?.length === 0 && (
@@ -170,8 +179,7 @@ export default function Home() {
         </p>
       )}
 
-      {inProgress.length > 0 && <Section title="In corso" games={inProgress} onDelete={askDelete} />}
-      {ended.length > 0 && <Section title="Terminate" games={ended} onDelete={askDelete} />}
+      {ended.length > 0 && <EndedList games={ended} onDelete={askDelete} />}
 
       <p className="mt-10 text-center text-xs text-white/35">
         {isSupabaseConfigured
@@ -189,7 +197,7 @@ export default function Home() {
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder={defaultTitle}
-          className="mt-1 w-full rounded-xl bg-night-900 px-4 py-3 outline-none ring-1 ring-white/10 focus:ring-blue-500"
+          className="mt-1 w-full rounded-xl bg-night-900 px-4 py-3 outline-none ring-1 ring-white/10 focus:ring-gold-400"
         />
         {groups.length > 0 && (
           <>
@@ -200,7 +208,7 @@ export default function Home() {
               id="group"
               value={groupId}
               onChange={(e) => setGroupId(e.target.value)}
-              className="mt-1 w-full rounded-xl bg-night-900 px-4 py-3 outline-none ring-1 ring-white/10 focus:ring-blue-500"
+              className="mt-1 w-full rounded-xl bg-night-900 px-4 py-3 outline-none ring-1 ring-white/10 focus:ring-gold-400"
             >
               <option value="">Nessuna: partita al volo</option>
               {groups.map((g) => (
@@ -248,41 +256,79 @@ export default function Home() {
   }
 }
 
-function Section({ title, games, onDelete }: { title: string; games: GameCard[]; onDelete: (g: GameCard) => void }) {
+function leaderOf(s: GameState | null) {
+  return s ? [...s.players].sort((a, b) => b.balanceCents - a.balanceCents)[0] : undefined;
+}
+
+/** Partita in corso: card grande con piatto in evidenza e "Riprendi". */
+function LiveCard({ game: g, onDelete }: { game: GameCard; onDelete: (g: GameCard) => void }) {
+  const s = g.state;
+  const leader = leaderOf(s);
   return (
-    <section className="mt-7">
-      <h2 className="mb-2 text-xs font-semibold uppercase tracking-widest text-white/40">{title}</h2>
-      <ul className="space-y-2">
+    <div className="relative rounded-3xl bg-night-800 ring-1 ring-gold-400/30">
+      <Link href={`/partita/${g.id}`} className="block p-4 pr-12">
+        <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-gain">
+          <span className="h-2 w-2 rounded-full bg-gain" aria-hidden />
+          In corso
+        </span>
+        <span className="mt-2 block truncate text-lg font-bold">{g.title}</span>
+        <span className="block truncate text-xs text-white/50">
+          {s ? `${s.players.length} giocatori · ${s.handsPlayed} mani` : "Dati non leggibili"}
+          {leader && leader.balanceCents > 0 && ` · in testa ${leader.name}`}
+        </span>
+        {s && (
+          <span className="mt-3 -mr-8 flex items-end justify-between gap-3">
+            <span>
+              <span className="block text-xs text-white/50">Piatto</span>
+              <span className="tabular block text-3xl font-black leading-none text-gold-400">{formatCents(s.potCents)}</span>
+            </span>
+            <span className="rounded-xl bg-gold-400 px-4 py-2.5 font-bold text-night-950">Riprendi</span>
+          </span>
+        )}
+      </Link>
+      <button
+        onClick={() => onDelete(g)}
+        className="absolute right-2 top-2 rounded-full p-2 text-white/30 hover:bg-white/10 hover:text-red-400"
+        aria-label={`Elimina ${g.title}`}
+      >
+        <Trash2 size={18} />
+      </button>
+    </div>
+  );
+}
+
+/** Partite terminate: righe compatte con chi ha vinto. */
+function EndedList({ games, onDelete }: { games: GameCard[]; onDelete: (g: GameCard) => void }) {
+  return (
+    <section className="mt-8">
+      <h2 className="mb-1 text-xs font-semibold uppercase tracking-widest text-white/40">Terminate</h2>
+      <ul className="divide-y divide-white/5">
         {games.map((g) => {
           const s = g.state;
-          const leader = s ? [...s.players].sort((a, b) => b.balanceCents - a.balanceCents)[0] : undefined;
+          const leader = leaderOf(s);
           return (
-            <li key={g.id} className="flex items-center rounded-2xl bg-night-800 ring-1 ring-white/5">
-              <Link href={`/partita/${g.id}`} className="flex min-w-0 flex-1 items-center gap-3 p-4">
+            <li key={g.id} className="flex items-center">
+              <Link href={`/partita/${g.id}`} className="flex min-w-0 flex-1 items-center gap-3 py-3 pl-1">
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-semibold">{g.title}</span>
                   <span className="block truncate text-xs text-white/45">
+                    {new Date(g.updatedAt).toLocaleDateString("it-IT", { day: "numeric", month: "short" })} ·{" "}
                     {s ? `${s.players.length} giocatori · ${s.handsPlayed} mani` : "Dati non leggibili"}
-                    {s && g.status !== "ended" && ` · piatto ${formatCents(s.potCents)}`}
                   </span>
-                  {leader && leader.balanceCents > 0 && (
-                    <span className="mt-1 block truncate text-xs text-white/60">
-                      {g.status === "ended" ? "Ha vinto" : "In testa"} <strong className="text-white">{leader.name}</strong>{" "}
-                      <span className="tabular font-bold text-gain">{formatCents(leader.balanceCents, { signed: true })}</span>
-                    </span>
-                  )}
                 </span>
-                <span className="text-right text-xs text-white/35">
-                  {new Date(g.updatedAt).toLocaleDateString("it-IT", { day: "numeric", month: "short" })}
-                </span>
-                <ChevronRight size={18} className="shrink-0 text-white/30" />
+                {leader && leader.balanceCents > 0 && (
+                  <span className="shrink-0 text-right text-xs">
+                    <span className="block max-w-[6rem] truncate text-white/70">{leader.name}</span>
+                    <span className="tabular font-bold text-gain">{formatCents(leader.balanceCents, { signed: true })}</span>
+                  </span>
+                )}
               </Link>
               <button
                 onClick={() => onDelete(g)}
-                className="mr-2 rounded-full p-2 text-white/30 hover:bg-white/10 hover:text-red-400"
+                className="ml-1 rounded-full p-2 text-white/25 hover:bg-white/10 hover:text-red-400"
                 aria-label={`Elimina ${g.title}`}
               >
-                <Trash2 size={18} />
+                <Trash2 size={16} />
               </button>
             </li>
           );
@@ -333,7 +379,7 @@ function JoinByCode() {
         maxLength={8}
         autoCapitalize="characters"
         autoComplete="off"
-        className="min-w-0 flex-1 rounded-xl bg-night-900 px-3 py-2 font-mono uppercase tracking-[0.3em] outline-none ring-1 ring-white/10 focus:ring-blue-500"
+        className="min-w-0 flex-1 rounded-xl bg-night-900 px-3 py-2 font-mono uppercase tracking-[0.3em] outline-none ring-1 ring-white/10 focus:ring-gold-400"
       />
       <Button type="submit" variant="secondary" className="px-4 py-2 text-sm" disabled={clean.length < 4}>
         Entra

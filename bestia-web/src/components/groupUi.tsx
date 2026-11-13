@@ -8,7 +8,7 @@ import { Character, CROPS } from "./Character";
 /** Pezzi in comune tra le pagine delle compagnie. */
 
 export const inputClass =
-  "mt-1 w-full rounded-xl bg-night-900 px-4 py-3 outline-none ring-1 ring-white/10 focus:ring-blue-500 aria-[invalid=true]:ring-red-400";
+  "mt-1 w-full rounded-xl bg-night-900 px-4 py-3 outline-none ring-1 ring-white/10 focus:ring-gold-400 aria-[invalid=true]:ring-red-400";
 
 export const messageOf = (e: unknown) => (e instanceof Error ? e.message : "Qualcosa è andato storto.");
 
@@ -20,7 +20,7 @@ export function AccountRequired({ next, text }: { next: string; text?: string })
       <p className="mt-3 text-white/75">{text ?? "Per creare una compagnia o entrarci serve un account. Bastano username e password."}</p>
       <Link
         href={`/account?next=${encodeURIComponent(next)}`}
-        className="mt-4 inline-block rounded-2xl bg-blue-600 px-5 py-3 font-bold text-white hover:bg-blue-500"
+        className="mt-4 inline-block rounded-2xl bg-gold-400 px-5 py-3 font-bold text-night-950 hover:bg-gold-500"
       >
         Entra o crea un account
       </Link>
