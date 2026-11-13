@@ -437,14 +437,14 @@ export default function GamePage() {
                 </Button>
                 <Button
                   variant="secondary"
-                  className="min-w-0 flex-1 whitespace-nowrap px-3"
+                  className="flex min-w-0 flex-1 flex-col items-center justify-center whitespace-nowrap px-2! py-2! leading-tight"
                   disabled={!canPlay(state)}
                   onClick={async () => {
                     haptic();
                     if (await run({ type: "hand_passed" })) notify("Mano passata: il mazzo gira e il piatto sale");
                   }}
                 >
-                  Passa <span className="hidden font-semibold text-white/60 min-[360px]:inline">+{formatCents(state.baseBetCents)}</span>
+                  Passa <span className="text-xs font-semibold tracking-normal text-white/60">+{formatCents(state.baseBetCents)}</span>
                 </Button>
                 <Button
                   className="min-w-0 flex-[1.5] whitespace-nowrap px-3"
