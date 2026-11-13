@@ -1,9 +1,12 @@
 /**
- * Suoni della vista TV, sintetizzati al volo (nessun file da scaricare).
+ * Suoni della vista TV e delle bustine, sintetizzati al volo (nessun file da scaricare).
  * I browser li permettono solo dopo un tocco: `unlock()` va chiamata da un clic.
  */
 
-export type SoundKind = "bestia" | "win" | "big" | "pass";
+export type SoundKind = "bestia" | "win" | "big" | "pass" | PackSound;
+
+/** Suoni delle bustine. */
+export type PackSound = "shake" | "rip" | "flip" | "rare" | "epic" | "legendary" | "coins";
 
 let ctx: AudioContext | null = null;
 
@@ -52,6 +55,28 @@ function tone(
   osc.stop(t + dur + 0.05);
 }
 
+/** Rumore filtrato (carta, strappi). */
+function noise(c: AudioContext, out: AudioNode, { at = 0, dur = 0.2, freq = 2000, to = freq, gain = 0.3 }: { at?: number; dur?: number; freq?: number; to?: number; gain?: number }) {
+  const t = c.currentTime + at;
+  const buffer = c.createBuffer(1, Math.max(1, Math.floor(c.sampleRate * dur)), c.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+  const src = c.createBufferSource();
+  src.buffer = buffer;
+  const filter = c.createBiquadFilter();
+  filter.type = "bandpass";
+  filter.Q.value = 0.8;
+  filter.frequency.setValueAtTime(freq, t);
+  if (to !== freq) filter.frequency.exponentialRampToValueAtTime(to, t + dur);
+  const g = c.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(gain, t + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(filter).connect(g).connect(out);
+  src.start(t);
+  src.stop(t + dur + 0.05);
+}
+
 export function play(kind: SoundKind) {
   const c = context();
   if (!c || c.state !== "running") return;
@@ -76,6 +101,28 @@ export function play(kind: SoundKind) {
     // piatto d'oro: arpeggio lungo e scintillio
     [523, 659, 784, 1047, 1319, 1568, 2093].forEach((f, i) => tone(c, master, { from: f, type: "triangle", at: i * 0.07, dur: 0.35, gain: 0.16 }));
     [2637, 3136, 2637, 3520].forEach((f, i) => tone(c, master, { from: f, type: "sine", at: 0.55 + i * 0.09, dur: 0.25, gain: 0.06 }));
+  } else if (kind === "shake") {
+    // fruscio di carta: rumore filtrato breve
+    noise(c, master, { dur: 0.12, freq: 2400, gain: 0.25 });
+  } else if (kind === "rip") {
+    // strappo: rumore che sale, poi un "pop"
+    noise(c, master, { dur: 0.32, freq: 1800, to: 5200, gain: 0.45 });
+    tone(c, master, { from: 180, to: 60, type: "sine", at: 0.28, dur: 0.25, gain: 0.5 });
+  } else if (kind === "flip") {
+    tone(c, master, { from: 520, to: 880, type: "triangle", dur: 0.09, gain: 0.12 });
+  } else if (kind === "rare") {
+    [784, 1175].forEach((f, i) => tone(c, master, { from: f, type: "triangle", at: i * 0.09, dur: 0.3, gain: 0.14 }));
+  } else if (kind === "epic") {
+    [523, 784, 1047, 1568].forEach((f, i) => tone(c, master, { from: f, type: "triangle", at: i * 0.08, dur: 0.4, gain: 0.15 }));
+    tone(c, master, { from: 2093, to: 3136, type: "sine", at: 0.35, dur: 0.4, gain: 0.05 });
+  } else if (kind === "legendary") {
+    // fanfara: rullo che sale, accordo d'oro e scintillio
+    tone(c, master, { from: 90, to: 260, type: "sawtooth", dur: 0.6, gain: 0.08 });
+    [523, 659, 784, 1047].forEach((f) => tone(c, master, { from: f, type: "triangle", at: 0.6, dur: 1.1, gain: 0.12 }));
+    [1568, 2093, 2637, 3136, 2637, 3520, 4186].forEach((f, i) => tone(c, master, { from: f, type: "sine", at: 0.7 + i * 0.08, dur: 0.3, gain: 0.05 }));
+    tone(c, master, { from: 110, to: 40, type: "sine", at: 0.6, dur: 0.5, gain: 0.5 });
+  } else if (kind === "coins") {
+    [1319, 1568, 1976, 2349].forEach((f, i) => tone(c, master, { from: f, type: "square", at: i * 0.06, dur: 0.12, gain: 0.05 }));
   } else {
     // mano passata: un colpetto discreto
     tone(c, master, { from: 700, to: 500, type: "sine", dur: 0.12, gain: 0.12 });

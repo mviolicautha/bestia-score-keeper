@@ -40,6 +40,10 @@ Poi, sempre nel SQL Editor, esegui anche gli altri script in [`supabase/migratio
   che il sito pubblicato ha la versione dell'app che lo conosce: le versioni precedenti non trovano più le partite
   degli altri dal codice.
 - `0008_storico.sql`: risultati salvati a fine partita, "Le mie partite" e import delle partite fatte in locale.
+- `0009_bustine.sql`: bustine, gettoni e album. I capelli restano liberi; gli altri pezzi del personaggio si
+  sbloccano aprendo bustine (una di benvenuto, una al giorno, o comprate con i gettoni guadagnati giocando). Finché
+  non lo esegui, l'app lascia tutti i pezzi liberi come prima. Se aggiungi pezzi al catalogo, dai loro una rarità in
+  `src/lib/avatar/rarity.json` ed esegui nel SQL Editor l'SQL stampato da `npm run avatar:sql`.
 
 ## 4. Copia URL e chiave pubblica
 Vai in **Project Settings → API Keys** (o **Data API**) e copia:

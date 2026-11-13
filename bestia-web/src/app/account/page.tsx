@@ -2,11 +2,14 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { ChevronLeft, KeyRound, LogOut, Pencil, Trash2, UserRound } from "lucide-react";
+import { ChevronLeft, KeyRound, LogOut, PackageOpen, Pencil, Trash2, UserRound } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { AccountError, MIN_PASSWORD, passwordProblem, usernameProblem, type Account, type AccountService } from "@/lib/account";
 import { restartApp, useAccount } from "@/lib/useAccount";
 import { isEmpty } from "@/lib/avatar/catalog";
 import { getCharacter, saveCharacter } from "@/lib/avatar/store";
+import { editorAccess, useCollection } from "@/lib/avatar/collection";
+import { progressOf } from "@/lib/avatar/packs";
 import { Button, Sheet } from "@/components/Sheet";
 import { Character, CROPS } from "@/components/Character";
 import { CharacterEditor } from "@/components/CharacterEditor";
@@ -211,6 +214,10 @@ function Profile({ account, accounts, onChanged }: { account: Account; accounts:
   const [editingCharacter, setEditingCharacter] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
   const name = account.displayName || account.username || "";
+  const router = useRouter();
+  const collection = useCollection();
+  const access = editorAccess(collection, true);
+  const album = collection.status === "ready" ? progressOf(collection.collection.owned) : null;
   const show = (text: string, kind: ToastMessage["kind"]) => setToast({ text, kind, id: Date.now() });
 
   function openCharacter() {
@@ -244,6 +251,14 @@ function Profile({ account, accounts, onChanged }: { account: Account; accounts:
       <ul className="mt-5 divide-y divide-white/5 overflow-hidden rounded-2xl bg-night-800 ring-1 ring-white/5">
         <Row icon={<Pencil size={18} />} label="Nome al tavolo" detail={name} onClick={() => setEditingName(true)} />
         <Row icon={<UserRound size={18} />} label="Personaggio" onClick={openCharacter} />
+        {collection.status !== "off" && (
+          <Row
+            icon={<PackageOpen size={18} />}
+            label="Bustine e album"
+            detail={album ? `${album.owned}/${album.total}` : undefined}
+            onClick={() => router.push("/bustine")}
+          />
+        )}
         <Row icon={<KeyRound size={18} />} label="Cambia password" onClick={() => setChangingPassword(true)} />
         <Row
           icon={<LogOut size={18} />}
@@ -312,6 +327,8 @@ function Profile({ account, accounts, onChanged }: { account: Account; accounts:
       {editingCharacter && (
         <CharacterEditor
           name={name}
+          unlocked={access.unlocked}
+          collect={access.collect}
           onClose={() => setEditingCharacter(false)}
           onSaved={() =>
             void accounts.setCharacter(getCharacter(name)).then(

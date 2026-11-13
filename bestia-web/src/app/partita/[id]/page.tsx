@@ -50,7 +50,9 @@ import { getOnline, type JoinRequest } from "@/lib/online";
 import { useOnline, useRemoteCharacters, useShareCharacters } from "@/lib/useOnline";
 import { useGameGroup, type GameGroup } from "@/lib/useGameGroup";
 import { getGroups } from "@/lib/groups";
-import { getCharacter } from "@/lib/avatar/store";
+import { characterKey, getCharacter } from "@/lib/avatar/store";
+import { editorAccess, useCollection } from "@/lib/avatar/collection";
+import { useAccount } from "@/lib/useAccount";
 import { getHistory, resultsOf } from "@/lib/history";
 import { InviteSheet } from "@/components/InviteSheet";
 import { usePref } from "@/lib/prefs";
@@ -130,6 +132,9 @@ export default function GamePage() {
   useSaveResults(id, onlineInfo?.isMaster ? game.state : null);
   // i personaggi creati qui li vedono anche telefoni e TV
   const shareCharacter = useShareCharacters(game.state, onlineInfo);
+  // bustine: il master veste il suo personaggio con il suo album, gli altri con i pezzi liberi
+  const collection = useCollection();
+  const { account, accounts } = useAccount();
 
   const notify = useCallback((text: string, kind: ToastMessage["kind"] = "info") => {
     setToast({ text, kind, id: Date.now() });
@@ -611,22 +616,36 @@ export default function GamePage() {
             />
           ) : null;
         })()}
-      {typeof sheet === "object" && sheet !== null && "character" in sheet && (
-        <CharacterEditor
-          name={name(sheet.character)}
-          onClose={() => setSheet(null)}
-          onSaved={() => {
-            shareCharacter(name(sheet.character));
-            // ospite della compagnia: il personaggio resta suo anche nelle prossime partite
-            const member = gameGroup?.memberOf(sheet.character);
-            if (member && !member.profileId)
-              void getGroups()
-                ?.setMemberCharacter(member.id, getCharacter(name(sheet.character)))
-                .then(() => gameGroup?.reload(), () => {});
-            notify(`Personaggio di ${name(sheet.character)} salvato`, "success");
-          }}
-        />
-      )}
+      {typeof sheet === "object" &&
+        sheet !== null &&
+        "character" in sheet &&
+        (() => {
+          const who = name(sheet.character);
+          const member = gameGroup?.memberOf(sheet.character);
+          // il mio personaggio usa il mio album; quello degli altri solo i pezzi liberi
+          const mine =
+            !!account?.username &&
+            (member?.profileId === account.userId || characterKey(who) === characterKey(account.displayName || account.username));
+          const access = editorAccess(collection, mine);
+          return (
+            <CharacterEditor
+              name={who}
+              unlocked={access.unlocked}
+              collect={access.collect}
+              onClose={() => setSheet(null)}
+              onSaved={() => {
+                shareCharacter(who);
+                // ospite della compagnia: il personaggio resta suo anche nelle prossime partite
+                if (member && !member.profileId)
+                  void getGroups()
+                    ?.setMemberCharacter(member.id, getCharacter(who))
+                    .then(() => gameGroup?.reload(), () => {});
+                if (mine) void accounts?.setCharacter(getCharacter(who)).catch(() => {});
+                notify(`Personaggio di ${who} salvato`, "success");
+              }}
+            />
+          );
+        })()}
     </div>
     </CharacterOverrides>
   );

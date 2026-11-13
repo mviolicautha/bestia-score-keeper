@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "avatar:sql": "node scripts/avatar-items-sql.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.118.0",

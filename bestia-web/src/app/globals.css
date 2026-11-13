@@ -23,6 +23,97 @@
   --animate-coin-fall: coin-fall 2s linear infinite;
   --animate-snow-fall: snow-fall 12s linear infinite;
   --animate-twinkle: twinkle 1.8s ease-in-out infinite;
+  /* bustine */
+  --animate-pack-float: pack-float 3.2s ease-in-out infinite;
+  --animate-pack-shake: pack-shake 0.42s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+  --animate-pack-rumble: pack-shake 0.3s linear infinite;
+  --animate-cap-off: cap-off 0.75s cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+  --animate-body-out: body-out 0.8s cubic-bezier(0.5, 0, 0.75, 0) 0.2s forwards;
+  --animate-flash: flash 0.7s ease-out forwards;
+  --animate-rays: rays 16s linear infinite;
+  --animate-foil: foil 3.5s ease-in-out infinite;
+  --animate-tease: tease 1.1s ease-in-out infinite;
+  --animate-card-in: card-in 0.55s cubic-bezier(0.2, 1.3, 0.4, 1) both;
+  --animate-card-out: card-out 0.45s cubic-bezier(0.6, 0, 0.8, 0.4) forwards;
+  --animate-stamp: stamp 0.45s cubic-bezier(0.2, 1.6, 0.4, 1) 0.15s both;
+  --animate-confetti: confetti 1.9s cubic-bezier(0.15, 0.6, 0.4, 1) forwards;
+  --animate-screen-shake: screen-shake 0.5s ease-in-out both;
+  --animate-pop-in: pop-in 0.5s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+  --animate-holo: holo 2.6s linear infinite;
+  --animate-bounce-soft: bounce-soft 1.6s ease-in-out infinite;
+}
+
+/* Bustine: la bustina galleggia, trema a ogni tocco, si strappa; le carte si girano. */
+@keyframes pack-float {
+  0%, 100% { transform: translateY(0) rotate(-1.5deg); }
+  50% { transform: translateY(-10px) rotate(1.5deg); }
+}
+@keyframes pack-shake {
+  0%, 100% { transform: translateX(0) rotate(0); }
+  20% { transform: translateX(calc(var(--amp, 1) * -5px)) rotate(calc(var(--amp, 1) * -3deg)); }
+  40% { transform: translateX(calc(var(--amp, 1) * 5px)) rotate(calc(var(--amp, 1) * 3deg)); }
+  60% { transform: translateX(calc(var(--amp, 1) * -4px)) rotate(calc(var(--amp, 1) * -2deg)); }
+  80% { transform: translateX(calc(var(--amp, 1) * 3px)) rotate(calc(var(--amp, 1) * 1deg)); }
+}
+@keyframes cap-off {
+  0% { transform: translate(0, 0) rotate(0); opacity: 1; }
+  100% { transform: translate(60px, -55vh) rotate(38deg); opacity: 0; }
+}
+@keyframes body-out {
+  0% { transform: translateY(0); opacity: 1; }
+  100% { transform: translateY(70vh) rotate(-6deg); opacity: 0; }
+}
+@keyframes flash {
+  0% { opacity: 0.95; transform: scale(0.4); }
+  100% { opacity: 0; transform: scale(2.4); }
+}
+@keyframes rays {
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+@keyframes foil {
+  0% { background-position: 160% 0; }
+  60%, 100% { background-position: -60% 0; }
+}
+@keyframes tease {
+  0%, 100% { box-shadow: 0 0 18px 2px var(--glow); }
+  50% { box-shadow: 0 0 46px 12px var(--glow); }
+}
+@keyframes card-in {
+  0% { transform: translateY(45vh) scale(0.6) rotate(-8deg); opacity: 0; }
+  100% { transform: translateY(0) scale(1) rotate(0); opacity: 1; }
+}
+@keyframes card-out {
+  0% { transform: translate(0, 0) rotate(0); opacity: 1; }
+  100% { transform: translate(-70vw, -8vh) rotate(-24deg); opacity: 0; }
+}
+@keyframes stamp {
+  0% { transform: scale(2.6) rotate(-18deg); opacity: 0; }
+  100% { transform: scale(1) rotate(-8deg); opacity: 1; }
+}
+@keyframes confetti {
+  0% { transform: translate(0, 0) scale(0.4) rotate(0); opacity: 1; }
+  35% { transform: translate(var(--dx), var(--dy)) scale(1) rotate(calc(var(--r) * 0.4)); opacity: 1; }
+  100% { transform: translate(calc(var(--dx) * 1.25), calc(var(--dy) + 70vh)) scale(0.9) rotate(var(--r)); opacity: 0; }
+}
+@keyframes screen-shake {
+  0%, 100% { transform: translate(0, 0); }
+  15% { transform: translate(-9px, 4px); }
+  30% { transform: translate(8px, -6px); }
+  45% { transform: translate(-6px, 6px); }
+  60% { transform: translate(5px, -3px); }
+  80% { transform: translate(-2px, 2px); }
+}
+@keyframes pop-in {
+  0% { transform: scale(0.5) translateY(14px); opacity: 0; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+@keyframes holo {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+@keyframes bounce-soft {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
 }
 
 /* Tema natalizio: neve che scende ondeggiando, lucine che pulsano. */
