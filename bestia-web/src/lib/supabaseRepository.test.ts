@@ -74,6 +74,26 @@ describe("partite su Supabase", () => {
     expect(f.calls).toContainEqual({ op: "rpc.create_game", args: [{ p_title: "Venerdì", p_base_bet_cents: 30 }] });
   });
 
+  it("crea la partita dentro una compagnia", async () => {
+    const f = fakeClient({});
+    await new SupabaseGameRepository(f.sb, user).createGame("Venerdì", 30, "grp-1");
+    expect(f.calls).toContainEqual({ op: "rpc.create_game", args: [{ p_title: "Venerdì", p_base_bet_cents: 30, p_group: "grp-1" }] });
+  });
+
+  it("una partita che non vedo (aperta dal link) la chiede come spettatore, una volta sola", async () => {
+    const f = fakeClient({ games: [], game_events: [] });
+    const repo = new SupabaseGameRepository(f.sb, user);
+    expect(await repo.getGame("g-tv")).toBeNull();
+    expect(await repo.loadEvents("g-tv")).toEqual([]);
+    expect(f.calls.filter((c) => c.op === "rpc.watch_game")).toEqual([{ op: "rpc.watch_game", args: [{ p_id: "g-tv" }] }]);
+  });
+
+  it("le partite che vedo già non passano da watch_game", async () => {
+    const f = fakeClient({ games: [{ id: "g1", code: "AAAAA", title: "Mia", status: "in_progress", created_at: "c", updated_at: "u", master_id: "u-master" }] });
+    expect((await new SupabaseGameRepository(f.sb, user).getGame("g1"))?.title).toBe("Mia");
+    expect(f.calls.some((c) => c.op === "rpc.watch_game")).toBe(false);
+  });
+
   it("elenca solo le partite del master, con il codice per unirsi", async () => {
     const f = fakeClient({
       games: [

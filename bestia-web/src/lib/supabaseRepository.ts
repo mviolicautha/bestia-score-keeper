@@ -16,6 +16,7 @@ interface GameRow {
   status: GameStatus;
   created_at: string;
   updated_at: string;
+  group_id?: string | null;
 }
 interface EventRow {
   seq: number;
@@ -30,7 +31,10 @@ const toMeta = (r: GameRow): GameMeta => ({
   status: r.status,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
+  groupId: r.group_id ?? null,
 });
+
+const GAME_COLUMNS = "id, code, title, status, created_at, updated_at, group_id";
 
 function check<T>(res: { data: T; error: { message: string } | null }, what: string): T {
   if (res.error) throw new Error(`${what}: ${res.error.message}`);
@@ -49,7 +53,7 @@ export class SupabaseGameRepository implements GameRepository {
   async listGames() {
     const uid = await this.user();
     const rows = check(
-      await this.sb.from("games").select("id, code, title, status, created_at, updated_at").eq("master_id", uid).order("updated_at", { ascending: false }),
+      await this.sb.from("games").select(GAME_COLUMNS).eq("master_id", uid).order("updated_at", { ascending: false }),
       "Elenco partite",
     ) as GameRow[];
     return rows.map(toMeta);
@@ -57,26 +61,55 @@ export class SupabaseGameRepository implements GameRepository {
 
   async getGame(gameId: string) {
     await this.user();
-    const row = check(
-      await this.sb.from("games").select("id, code, title, status, created_at, updated_at").eq("id", gameId).maybeSingle(),
-      "Partita",
-    ) as GameRow | null;
+    const read = async () =>
+      check(await this.sb.from("games").select(GAME_COLUMNS).eq("id", gameId).maybeSingle(), "Partita") as GameRow | null;
+    // non la vedo (non sono master, né della compagnia, né seduto): ho il link, divento spettatore
+    const row = (await read()) ?? ((await this.watch(gameId)) ? await read() : null);
     return row ? toMeta(row) : null;
   }
 
-  async createGame(title: string, baseBetCents: number) {
+  async createGame(title: string, baseBetCents: number, groupId?: string | null) {
     await this.user();
-    const row = check(await this.sb.rpc("create_game", { p_title: title, p_base_bet_cents: baseBetCents }), "Nuova partita") as GameRow;
+    const args: Record<string, unknown> = { p_title: title, p_base_bet_cents: baseBetCents };
+    if (groupId) args.p_group = groupId;
+    const row = check(await this.sb.rpc("create_game", args), "Nuova partita") as GameRow;
     return row.id;
   }
 
   async loadEvents(gameId: string): Promise<StoredEvent[]> {
     await this.user();
-    const rows = check(
-      await this.sb.from("game_events").select("seq, event, at").eq("game_id", gameId).order("seq", { ascending: true }),
-      "Eventi",
-    ) as EventRow[];
+    const read = async () =>
+      check(
+        await this.sb.from("game_events").select("seq, event, at").eq("game_id", gameId).order("seq", { ascending: true }),
+        "Eventi",
+      ) as EventRow[];
+    let rows = await read();
+    // ogni partita ha almeno l'evento di avvio: se non vedo nulla, ho il link e divento spettatore
+    if (rows.length === 0 && (await this.watch(gameId))) rows = await read();
     return rows.map((r) => ({ event: r.event, at: r.at }));
+  }
+
+  /**
+   * Chi apre una partita dal link (TV, giocatori) diventa spettatore e da lì in poi la legge
+   * (0007_partite_compagnie.sql). Una volta per partita. false se la partita non esiste o se il
+   * database non ha ancora la funzione (prima di 0007 tutte le partite erano leggibili).
+   */
+  private watched = new Map<string, Promise<boolean>>();
+  private watch(gameId: string): Promise<boolean> {
+    let p = this.watched.get(gameId);
+    if (!p) {
+      p = (async () => {
+        const { data, error } = await this.sb.rpc("watch_game", { p_id: gameId });
+        if (error) {
+          this.watched.delete(gameId);
+          if (isMissingFunction(error)) return false;
+          throw new Error(`Partita: ${error.message}`);
+        }
+        return !!data;
+      })();
+      this.watched.set(gameId, p);
+    }
+    return p;
   }
 
   async appendEvent(gameId: string, event: GameEvent, status: GameStatus, expectedCount?: number) {

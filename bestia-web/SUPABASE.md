@@ -35,6 +35,10 @@ Poi, sempre nel SQL Editor, esegui anche gli altri script in [`supabase/migratio
 - `0005_account.sql`: account con username e password (vedi il passo 6), e "Elimina account" che non cancella le
   partite condotte da master.
 - `0006_compagnie.sql`: compagnie di amici con codice invito, membri (anche ospiti senza account) e amministratori.
+- `0007_partite_compagnie.sql`: partite dentro le compagnie, giocatori legati ai membri, e partite non più leggibili da
+  chiunque (solo master, membri della compagnia, chi è seduto o chi l'ha aperta con codice/link). Va eseguito **dopo**
+  che il sito pubblicato ha la versione dell'app che lo conosce: le versioni precedenti non trovano più le partite
+  degli altri dal codice.
 
 ## 4. Copia URL e chiave pubblica
 Vai in **Project Settings → API Keys** (o **Data API**) e copia:

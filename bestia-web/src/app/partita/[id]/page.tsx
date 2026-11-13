@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   Armchair,
   ArrowLeft,
@@ -48,6 +48,9 @@ import { CharacterEditor } from "@/components/CharacterEditor";
 import { CharacterOverrides, useCharacterFor } from "@/lib/avatar/overrides";
 import { getOnline, type JoinRequest } from "@/lib/online";
 import { useOnline, useRemoteCharacters, useShareCharacters } from "@/lib/useOnline";
+import { useGameGroup, type GameGroup } from "@/lib/useGameGroup";
+import { getGroups } from "@/lib/groups";
+import { getCharacter } from "@/lib/avatar/store";
 import { InviteSheet } from "@/components/InviteSheet";
 import { usePref } from "@/lib/prefs";
 import { isSupabaseConfigured } from "@/lib/supabase";
@@ -117,7 +120,12 @@ export default function GamePage() {
   const [view, setView] = usePref("vista-giocatori", "grid", ["grid", "table"] as const);
   // Partita online: telefoni collegati, richieste di sedersi, personaggi dai profili dei giocatori.
   const onlineInfo = useOnline(getOnline() ? id : null);
-  const overrides = useRemoteCharacters(game.state, onlineInfo?.seats, onlineInfo?.game?.characters);
+  // partita di una compagnia: i giocatori si scelgono tra i membri, con i loro personaggi
+  const gameGroup = useGameGroup(onlineInfo?.game?.groupId, id);
+  const sharedCharacters = onlineInfo?.game?.characters;
+  const groupCharacters = gameGroup?.characters;
+  const remoteShared = useMemo(() => ({ ...sharedCharacters, ...groupCharacters }), [sharedCharacters, groupCharacters]);
+  const overrides = useRemoteCharacters(game.state, onlineInfo?.seats, remoteShared);
   // i personaggi creati qui li vedono anche telefoni e TV
   const shareCharacter = useShareCharacters(game.state, onlineInfo);
 
@@ -536,7 +544,16 @@ export default function GamePage() {
       <Toast toast={toast} onDone={clearToast} />
       <ConfirmDialog request={confirm} onClose={() => setConfirm(null)} />
 
-      {sheet === "add" && <AddPlayerSheet onClose={() => setSheet(null)} state={state} run={run} />}
+      {sheet === "add" && (
+        <AddPlayerSheet
+          onClose={() => setSheet(null)}
+          state={state}
+          run={run}
+          gameId={id}
+          group={onlineInfo?.isMaster ? gameGroup : null}
+          onError={(text) => notify(text, "error")}
+        />
+      )}
       {sheet === "bet" && <BetSheet onClose={() => setSheet(null)} state={state} run={run} />}
       {sheet === "tv" && <TvSheet onClose={() => setSheet(null)} gameId={id} />}
       <EndSheet open={sheet === "end"} onClose={() => setSheet(null)} state={state} run={run} />
@@ -598,6 +615,12 @@ export default function GamePage() {
           onClose={() => setSheet(null)}
           onSaved={() => {
             shareCharacter(name(sheet.character));
+            // ospite della compagnia: il personaggio resta suo anche nelle prossime partite
+            const member = gameGroup?.memberOf(sheet.character);
+            if (member && !member.profileId)
+              void getGroups()
+                ?.setMemberCharacter(member.id, getCharacter(name(sheet.character)))
+                .then(() => gameGroup?.reload(), () => {});
             notify(`Personaggio di ${name(sheet.character)} salvato`, "success");
           }}
         />
@@ -738,7 +761,22 @@ function MenuSheet({
   );
 }
 
-function AddPlayerSheet({ onClose, state, run }: { onClose: () => void; state: GameState; run: Run }) {
+function AddPlayerSheet({
+  onClose,
+  state,
+  run,
+  gameId,
+  group,
+  onError,
+}: {
+  onClose: () => void;
+  state: GameState;
+  run: Run;
+  gameId: string;
+  /** Compagnia della partita (solo per il master): i giocatori si scelgono tra i membri. */
+  group: GameGroup | null;
+  onError: (text: string) => void;
+}) {
   const [value, setValue] = useState("");
   const [added, setAdded] = useState<string[]>([]);
   const active = activePlayers(state);
@@ -761,8 +799,43 @@ function AddPlayerSheet({ onClose, state, run }: { onClose: () => void; state: G
     return ok;
   }
 
+  // membri della compagnia non ancora in questa partita (né legati né con lo stesso nome)
+  const taken = new Set(state.players.map((p) => p.name.trim().toLocaleLowerCase("it")));
+  const linked = new Set(Object.values(group?.links ?? {}));
+  const available = (group?.group.members ?? []).filter((m) => !linked.has(m.id) && !taken.has(m.name.trim().toLocaleLowerCase("it")));
+
+  /** Siede un membro della compagnia e lo lega al giocatore (il suo telefono prende il posto). */
+  async function joinMember(memberId: string, memberName: string) {
+    const playerId = newPlayerId();
+    const ok = await join(playerId, memberName);
+    if (!ok) return false;
+    try {
+      await getGroups()?.linkPlayer(gameId, playerId, memberId);
+      await group?.reload();
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "Collegamento al membro non riuscito.");
+    }
+    return true;
+  }
+
   async function add() {
-    if (await join(newPlayerId(), value.trim())) setValue("");
+    const typed = value.trim();
+    if (!group) {
+      if (await join(newPlayerId(), typed)) setValue("");
+      return;
+    }
+    // nella compagnia: se esiste già un membro con quel nome è lui, altrimenti diventa un nuovo ospite
+    const existing = available.find((m) => m.name.trim().toLocaleLowerCase("it") === typed.toLocaleLowerCase("it"));
+    let memberId = existing?.id;
+    if (!memberId) {
+      try {
+        memberId = await getGroups()!.addMember(group.group.id, typed);
+      } catch (e) {
+        onError(e instanceof Error ? e.message : "Non riesco ad aggiungerlo alla compagnia.");
+        return;
+      }
+    }
+    if (await joinMember(memberId, existing?.name ?? typed)) setValue("");
   }
 
   return (
@@ -807,6 +880,24 @@ function AddPlayerSheet({ onClose, state, run }: { onClose: () => void; state: G
         Poi tocca un giocatore per creargli il personaggio.
       </p>
       {added.length > 0 && <p className="mt-2 text-sm text-emerald-300">Aggiunti: {added.join(", ")}</p>}
+      {group && !full && (
+        <>
+          <p className="mb-2 mt-5 text-sm text-white/60">
+            Dalla compagnia <strong className="text-white/85">{group.group.name}</strong>
+          </p>
+          {available.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {available.map((m) => (
+                <Button key={m.id} variant="secondary" className="py-2" onClick={() => joinMember(m.id, m.name)}>
+                  {m.name}
+                </Button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-white/40">Ci sono già tutti. Scrivi un nome nuovo sopra: entrerà nella compagnia come ospite.</p>
+          )}
+        </>
+      )}
       {inactive.length > 0 && !full && (
         <>
           <p className="mb-2 mt-5 text-sm text-white/60">Rientra al tavolo (nel posto scelto sopra)</p>
