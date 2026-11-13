@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
-import { History, Plus, Share, Trash2, UserRound, Users, X } from "lucide-react";
+import { History, PackageOpen, Plus, Share, Trash2, UserRound, Users, X } from "lucide-react";
+import { useCollection } from "@/lib/avatar/collection";
 import { useAccount } from "@/lib/useAccount";
 import { getGroups, type GroupSummary } from "@/lib/groups";
 import { formatCents, replay, type GameState } from "@/engine";
@@ -164,15 +165,16 @@ export default function Home() {
 
       {isSupabaseConfigured && <JoinByCode />}
       {isSupabaseConfigured && (
-        <nav className="mt-3 grid grid-cols-2 gap-2">
-          <Link href="/compagnie" className="flex items-center gap-2.5 rounded-2xl bg-night-800 p-3.5 ring-1 ring-white/5 hover:bg-night-700">
+        <nav className="mt-3 grid auto-cols-fr grid-flow-col gap-2">
+          <Link href="/compagnie" className="flex flex-col items-center gap-1.5 rounded-2xl bg-night-800 px-2 py-3 text-sm ring-1 ring-white/5 hover:bg-night-700">
             <Users size={20} className="shrink-0 text-gold-400" />
-            <span className="min-w-0 truncate font-semibold">Compagnie</span>
+            <span className="max-w-full truncate font-semibold">Compagnie</span>
           </Link>
-          <Link href="/storico" className="flex items-center gap-2.5 rounded-2xl bg-night-800 p-3.5 ring-1 ring-white/5 hover:bg-night-700">
+          <Link href="/storico" className="flex flex-col items-center gap-1.5 rounded-2xl bg-night-800 px-2 py-3 text-sm ring-1 ring-white/5 hover:bg-night-700">
             <History size={20} className="shrink-0 text-gold-400" />
-            <span className="min-w-0 truncate font-semibold">Storico</span>
+            <span className="max-w-full truncate font-semibold">Storico</span>
           </Link>
+          <PacksLink />
         </nav>
       )}
 
@@ -356,6 +358,29 @@ function AccountLink() {
     >
       <UserRound size={18} className="shrink-0 text-white/60" />
       <span className="truncate">{account === undefined ? "…" : label}</span>
+    </Link>
+  );
+}
+
+/** Bustine: un pallino quando c'è una bustina gratis da aprire o gettoni da riscuotere. */
+function PacksLink() {
+  const state = useCollection();
+  if (state.status === "off") return null;
+  const ready = state.status === "ready" ? state.collection : null;
+  const gift = !!ready && (ready.welcome || ready.daily || ready.rewards.length > 0);
+  return (
+    <Link
+      href="/bustine"
+      className={`relative flex flex-col items-center gap-1.5 rounded-2xl bg-night-800 px-2 py-3 text-sm ring-1 hover:bg-night-700 ${gift ? "ring-gold-400/50" : "ring-white/5"}`}
+      aria-label={gift ? "Bustine: ce n'è una gratis da aprire" : "Bustine"}
+    >
+      <PackageOpen size={20} className={`shrink-0 text-gold-400 ${gift ? "animate-bounce-soft motion-reduce:animate-none" : ""}`} />
+      <span className="max-w-full truncate font-semibold">Bustine</span>
+      {gift && (
+        <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-loss px-1 text-[11px] font-black text-white ring-2 ring-night-900">
+          {(ready.welcome ? 1 : 0) + (ready.daily ? 1 : 0) || "!"}
+        </span>
+      )}
     </Link>
   );
 }

@@ -12,6 +12,7 @@ import { characterKey, getCharacter, saveCharacter } from "@/lib/avatar/store";
 import { CharacterOverrides, useCharacterFor } from "@/lib/avatar/overrides";
 import { Character, CROPS } from "@/components/Character";
 import { CharacterEditor } from "@/components/CharacterEditor";
+import { editorAccess, useCollection } from "@/lib/avatar/collection";
 import { HistoryList } from "@/components/HistoryList";
 import { ReportSheet } from "@/components/ReportSheet";
 import { Table } from "@/components/Table";
@@ -24,6 +25,8 @@ export default function PlayerPage() {
   const info = useOnline(id);
   const overrides = useRemoteCharacters(game.state, info?.seats, info?.game?.characters);
   const [editing, setEditing] = useState(false);
+  // il proprio personaggio: pezzi del proprio album (gli ospiti senza account solo i capelli)
+  const access = editorAccess(useCollection(), true);
 
   if (!getOnline()) return <Centered>Per seguire la partita dal telefono l&apos;app deve essere online.</Centered>;
   if (game.loading || !info) return <Centered>Carico la partita…</Centered>;
@@ -72,6 +75,8 @@ export default function PlayerPage() {
       {editing && (
         <CharacterEditor
           name={me.name}
+          unlocked={access.unlocked}
+          collect={access.collect}
           onClose={() => setEditing(false)}
           // salvato anche nel profilo: lo vedono master, TV e gli altri telefoni
           onSaved={() =>

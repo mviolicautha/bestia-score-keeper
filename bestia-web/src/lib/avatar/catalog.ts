@@ -122,13 +122,16 @@ export function layersFor(config: CharacterConfig | null | undefined): Layer[] {
   return layers;
 }
 
-/** Personaggio a caso (per il pulsante "Casuale"). `rnd` restituisce un numero in [0, 1). */
-export function randomCharacter(rnd: () => number = Math.random): CharacterConfig {
+/**
+ * Personaggio a caso (per il pulsante "Casuale"). `rnd` restituisce un numero in [0, 1);
+ * `allow` limita la scelta ai pezzi che si possono indossare.
+ */
+export function randomCharacter(rnd: () => number = Math.random, allow: (item: CatalogItem) => boolean = () => true): CharacterConfig {
   const pick = (cat: Category, chance: number) => {
-    const list = itemsOf(cat);
+    const list = itemsOf(cat).filter(allow);
     return list.length && rnd() < chance ? list[Math.floor(rnd() * list.length)].id : undefined;
   };
-  const useCostume = rnd() < 0.1;
+  const useCostume = rnd() < 0.1 && itemsOf("costume").some(allow);
   const config: CharacterConfig = {
     hair: pick("hair", 0.85),
     hairColor: catalog.hairColors[Math.floor(rnd() * catalog.hairColors.length)]?.id,
