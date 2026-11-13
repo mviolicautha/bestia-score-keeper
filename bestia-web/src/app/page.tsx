@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { History, PackageOpen, Plus, Share, Trash2, UserRound, Users, X } from "lucide-react";
 import { useCollection } from "@/lib/avatar/collection";
 import { useAccount } from "@/lib/useAccount";
@@ -390,8 +390,17 @@ function JoinByCode() {
   const router = useRouter();
   const [code, setCode] = useState("");
   const clean = normalizeCode(code);
+  // Su iPhone (web app in Home) il campo riceveva il focus da solo all'apertura e la tastiera
+  // saltava fuori senza motivo: il focus vale solo se arriva da un tocco sul modulo o dalla tastiera.
+  const intendedAt = useRef(0);
+  useEffect(() => {
+    const onKey = () => (intendedAt.current = Date.now());
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   return (
     <form
+      onPointerDown={() => (intendedAt.current = Date.now())}
       onSubmit={(e) => {
         e.preventDefault();
         if (clean.length >= 4) router.push(`/g/${clean}`);
@@ -405,6 +414,10 @@ function JoinByCode() {
         id="join-code"
         value={code}
         onChange={(e) => setCode(e.target.value)}
+        onFocus={(e) => {
+          if (Date.now() - intendedAt.current > 1000) e.currentTarget.blur();
+          intendedAt.current = 0;
+        }}
         placeholder="ABC12"
         maxLength={8}
         autoCapitalize="characters"
