@@ -14,6 +14,39 @@ import { SEAT_COLORS } from "./ui";
  * Si adatta al contenitore: le misure sono in percentuali e in unità del contenitore (cqw).
  */
 
+/**
+ * Angoli dei posti attorno a un'ellisse (semiassi a, b nella stessa unità), a distanze uguali
+ * lungo il bordo e non ad angoli uguali: su un tavolo largo e basso (la TV) ad angoli uguali
+ * i posti sui lati corti finirebbero uno sopra l'altro. Il primo posto è in alto, poi in senso orario.
+ */
+export function seatAngles(n: number, a: number, b: number): number[] {
+  if (n <= 0) return [];
+  const steps = 720;
+  const cum = [0];
+  let prev = { x: 0, y: -b };
+  for (let k = 1; k <= steps; k++) {
+    const t = -Math.PI / 2 + (k / steps) * 2 * Math.PI;
+    const p = { x: a * Math.cos(t), y: b * Math.sin(t) };
+    cum.push(cum[k - 1] + Math.hypot(p.x - prev.x, p.y - prev.y));
+    prev = p;
+  }
+  const total = cum[steps];
+  const out: number[] = [];
+  for (let i = 0, k = 0; i < n; i++) {
+    const target = (i * total) / n;
+    while (k < steps && cum[k + 1] < target) k++;
+    const f = cum[k + 1] === cum[k] ? 0 : (target - cum[k]) / (cum[k + 1] - cum[k]);
+    out.push(-Math.PI / 2 + ((k + f) / steps) * 2 * Math.PI);
+  }
+  return out;
+}
+
+/** Ellisse dei posti (in % di larghezza e altezza del tavolo) e proporzioni del tavolo (altezza / larghezza). */
+export const ELLIPSE = { master: { rx: 40, ry: 37 }, tv: { rx: 43, ry: 34 } } as const;
+export const ASPECT = { master: 1.25, tv: 0.625 } as const;
+/** Larghezza di un posto in % della larghezza del tavolo: più giocatori, posti più stretti. */
+export const seatWidth = (n: number, tall: boolean) => (tall ? (n <= 6 ? 21 : n <= 8 ? 18 : 16) : n <= 6 ? 13 : n <= 8 ? 12 : 10);
+
 export interface SeatBadge {
   label: string;
   ring: string;
@@ -49,14 +82,14 @@ export function Table({
   const n = players.length;
   const tall = variant === "master"; // telefono in verticale: ovale allungato
   // Posti sul bordo del panno, abbastanza dentro da non uscire dal riquadro (il posto è alto ~1,45 volte la sua larghezza).
-  const rx = tall ? 40 : 43;
-  const ry = tall ? 37 : 34;
+  const { rx, ry } = ELLIPSE[tall ? "master" : "tv"];
+  const angles = seatAngles(n, rx, ry * ASPECT[tall ? "master" : "tv"]);
   const pos = (i: number) => {
-    const a = -Math.PI / 2 + (i * 2 * Math.PI) / Math.max(n, 1);
+    const a = angles[i] ?? -Math.PI / 2;
     return { x: 50 + rx * Math.cos(a), y: 50 + ry * Math.sin(a), a };
   };
   // Larghezza del posto in % del tavolo: sulla TV il tavolo è largo e basso, quindi posti più stretti.
-  const seatW = tall ? (n <= 6 ? 21 : n <= 8 ? 18 : 16) : n <= 6 ? 13 : n <= 8 ? 12 : 11;
+  const seatW = seatWidth(n, tall);
   const dealerIdx = players.findIndex((p) => p.id === state.dealerId);
   const chip = dealerIdx >= 0 ? pos(dealerIdx) : null;
 
@@ -159,11 +192,11 @@ function Seat({
           </span>
         )}
       </span>
-      <span className="mt-[0.6cqw] block truncate text-center text-[2.7cqw] font-bold leading-tight text-white drop-shadow">
+      <span className="mt-[0.6cqw] block truncate text-center text-[max(10px,2.7cqw)] font-bold leading-tight text-white drop-shadow">
         {player.name}
       </span>
       <span
-        className={`tabular block text-center text-[2.6cqw] font-black leading-tight ${
+        className={`tabular block text-center text-[max(10px,2.6cqw)] font-black leading-tight ${
           amount < 0 ? "text-loss" : amount > 0 ? "text-gain" : "text-white/60"
         }`}
       >
@@ -171,7 +204,7 @@ function Seat({
       </span>
       {delta !== undefined && delta !== 0 && (
         <span
-          className={`tabular mx-auto mt-[0.3cqw] block w-fit rounded-md px-[0.8cqw] text-[2.3cqw] font-bold ${
+          className={`tabular mx-auto mt-[0.3cqw] block w-fit rounded-md px-[0.8cqw] text-[max(9px,2.3cqw)] font-bold ${
             delta > 0 ? "bg-emerald-400/20 text-emerald-300" : "bg-red-400/20 text-red-300"
           }`}
         >

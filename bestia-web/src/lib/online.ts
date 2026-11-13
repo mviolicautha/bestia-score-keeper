@@ -1,6 +1,7 @@
 import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
 import type { CharacterConfig } from "./avatar/catalog";
 import { ensureUser, getSupabase, isSupabaseConfigured } from "./supabase";
+import { onWake } from "./resilience";
 
 /**
  * Giocatori che si collegano dal proprio telefono (solo con Supabase):
@@ -171,6 +172,7 @@ export class OnlineService {
     let closed = false;
     const channels: RealtimeChannel[] = [];
     const id = () => `${gameId}:${Math.random().toString(36).slice(2)}`;
+    const stopWake = onWake(onChange);
     void (async () => {
       await this.user();
       const { data } = await this.sb.auth.getSession();
@@ -197,6 +199,7 @@ export class OnlineService {
     });
     return () => {
       closed = true;
+      stopWake();
       for (const ch of channels) void this.sb.removeChannel(ch);
     };
   }

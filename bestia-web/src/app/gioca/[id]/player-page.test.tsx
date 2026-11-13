@@ -56,7 +56,7 @@ describe("unirsi dal telefono", () => {
   });
 
   it("chi non è al tavolo chiede di sedersi, aspetta, ed entra da solo quando il master approva", async () => {
-    const { id, online } = await seed();
+    const { id, repo, online } = await seed();
     render(<JoinPage />);
     const input = await screen.findByRole("textbox", { name: "Il tuo nome" });
     await act(async () => {
@@ -68,10 +68,36 @@ describe("unirsi dal telefono", () => {
     await user.click(screen.getByRole("button", { name: "Chiedi" }));
     expect(await screen.findByText(/Aspetta che il master ti faccia sedere/)).toBeTruthy();
 
-    // il master lo fa sedere come p5
+    // il master lo fa sedere come p5, ma l'approvazione arriva PRIMA dell'aggiornamento della partita:
+    // il telefono non deve prendere un posto che ancora non vede (né andare in ciclo)
     await act(() => online.calls.decideRequest("r1", "approved", "p5"));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(online.calls.claimSeat).not.toHaveBeenCalled();
+    await act(() => repo.appendEvent(id, { type: "player_added", playerId: "p5", name: "Marco" }, "in_progress"));
     await vi.waitFor(() => expect(online.calls.claimSeat).toHaveBeenCalledWith(id, "p5", "Marco", null));
+    expect(online.calls.claimSeat).toHaveBeenCalledTimes(1);
+    expect(online.calls.releaseSeat).not.toHaveBeenCalled();
     await vi.waitFor(() => expect(route.pushed).toContain(`/gioca/${id}`));
+  });
+
+  it("se il master ha annullato il giocatore di cui avevo preso il posto, posso sceglierne un altro", async () => {
+    const { id, online } = await seed();
+    online.state.seats.push({ playerId: "p-sparito", profileId: "u-io", character: null }); // posto "fantasma"
+    render(<JoinPage />);
+    // non vengo mandato alla partita per un posto che non esiste più
+    const dario = await screen.findByRole("button", { name: "Sono io: Dario" });
+    await act(async () => dario.click());
+    await vi.waitFor(() => expect(online.calls.claimSeat).toHaveBeenCalledWith(id, "p3", "Dario", null));
+    expect(online.calls.releaseSeat).toHaveBeenCalledWith(id, "p-sparito");
+  });
+
+  it("un codice inesistente lo dice chiaramente", async () => {
+    await seed();
+    route.id = "x";
+    const online = fakeOnline({ id: "g-altro", code: "AAAAA", title: "Altra", masterId: "m" });
+    setOnlineForTests(online.service);
+    render(<JoinPage />);
+    expect(await screen.findByText(/Nessuna partita con il codice KX7P2/)).toBeTruthy();
   });
 });
 

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it, vi } from "vitest";
 import { SupabaseGameRepository } from "./supabaseRepository";
+import { SaveConflictError } from "./resilience";
 
 /** Finto client Supabase: registra le chiamate e restituisce dati preparati. */
 function fakeClient(tables: Record<string, unknown[]>) {
@@ -115,5 +116,48 @@ describe("partite su Supabase", () => {
     f.fireUpdate();
     await new Promise((r) => setTimeout(r, 10));
     expect(seen).toEqual([1, 2]);
+  });
+});
+
+describe("salvataggi sicuri su Supabase (0003_salvataggi_sicuri.sql)", () => {
+  /** rpc finto: `reply` decide la risposta in base agli argomenti. */
+  const withRpc = (reply: (fn: string, args: Record<string, unknown>) => { error: { message: string; code?: string } | null }) => {
+    const calls: Record<string, unknown>[] = [];
+    const sb = {
+      rpc: vi.fn(async (fn: string, args: Record<string, unknown>) => {
+        calls.push(args);
+        return { data: null, ...reply(fn, args) };
+      }),
+    };
+    return { repo: new SupabaseGameRepository(sb as unknown as SupabaseClient, user), calls };
+  };
+
+  it("manda il numero di eventi atteso", async () => {
+    const { repo, calls } = withRpc(() => ({ error: null }));
+    await repo.appendEvent("g1", { type: "hand_passed" }, "in_progress", 7);
+    await repo.removeLastEvent("g1", "in_progress", 8);
+    expect(calls).toEqual([
+      { p_game: "g1", p_event: { type: "hand_passed" }, p_status: "in_progress", p_expected: 7 },
+      { p_game: "g1", p_status: "in_progress", p_expected: 8 },
+    ]);
+  });
+
+  it("se la partita è cambiata nel frattempo dà SaveConflictError", async () => {
+    const { repo } = withRpc(() => ({ error: { message: "conflict", code: "P0001" } }));
+    await expect(repo.appendEvent("g1", { type: "hand_passed" }, "in_progress", 7)).rejects.toBeInstanceOf(SaveConflictError);
+  });
+
+  it("con il database non ancora aggiornato salva lo stesso (senza controllo)", async () => {
+    const { repo, calls } = withRpc((_fn, args) =>
+      "p_expected" in args ? { error: { message: "Could not find the function public.append_event(p_event, p_expected, p_game, p_status)", code: "PGRST202" } } : { error: null },
+    );
+    await repo.appendEvent("g1", { type: "hand_passed" }, "in_progress", 7);
+    expect(calls).toHaveLength(2);
+    expect(calls[1]).not.toHaveProperty("p_expected");
+  });
+
+  it("gli altri errori (non sei il master, rete) restano errori", async () => {
+    const { repo } = withRpc(() => ({ error: { message: "not_master" } }));
+    await expect(repo.appendEvent("g1", { type: "hand_passed" }, "in_progress", 7)).rejects.toThrow(/not_master/);
   });
 });

@@ -1,6 +1,7 @@
 import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
 import type { GameEvent, GameStatus } from "@/engine";
 import type { GameMeta, GameRepository, StoredEvent } from "./repository";
+import { isMissingFunction, onWake, SaveConflictError } from "./resilience";
 
 /**
  * Le partite su Supabase, con la stessa interfaccia del salvataggio locale: le schermate
@@ -78,14 +79,24 @@ export class SupabaseGameRepository implements GameRepository {
     return rows.map((r) => ({ event: r.event, at: r.at }));
   }
 
-  async appendEvent(gameId: string, event: GameEvent, status: GameStatus) {
-    await this.user();
-    check(await this.sb.rpc("append_event", { p_game: gameId, p_event: event, p_status: status }), "Salvataggio");
+  async appendEvent(gameId: string, event: GameEvent, status: GameStatus, expectedCount?: number) {
+    await this.save("append_event", { p_game: gameId, p_event: event, p_status: status }, expectedCount, "Salvataggio");
   }
 
-  async removeLastEvent(gameId: string, status: GameStatus) {
+  async removeLastEvent(gameId: string, status: GameStatus, expectedCount?: number) {
+    await this.save("remove_last_event", { p_game: gameId, p_status: status }, expectedCount, "Annulla");
+  }
+
+  /** Chiama la funzione del database con il numero di eventi atteso (vedi 0003_salvataggi_sicuri.sql). */
+  private async save(fn: string, args: Record<string, unknown>, expected: number | undefined, what: string) {
     await this.user();
-    check(await this.sb.rpc("remove_last_event", { p_game: gameId, p_status: status }), "Annulla");
+    let res = await this.sb.rpc(fn, expected === undefined ? args : { ...args, p_expected: expected });
+    // database non ancora aggiornato con lo script 0003: si salva senza il controllo
+    if (res.error && expected !== undefined && isMissingFunction(res.error)) res = await this.sb.rpc(fn, args);
+    if (res.error) {
+      if (/\bconflict\b/.test(res.error.message)) throw new SaveConflictError();
+      throw new Error(`${what}: ${res.error.message}`);
+    }
   }
 
   async deleteGame(gameId: string) {
@@ -107,6 +118,9 @@ export class SupabaseGameRepository implements GameRepository {
         .catch(() => {
           /* connessione persa: al prossimo aggiornamento si riprova */
         });
+
+    // al risveglio del telefono (o al ritorno della rete) si ricarica: in standby si perdono aggiornamenti
+    const stopWake = onWake(() => void reload());
 
     void (async () => {
       // Prima la sessione, poi il canale: senza il token dell'utente il database tratta il canale
@@ -134,6 +148,7 @@ export class SupabaseGameRepository implements GameRepository {
     return () => {
       closed = true;
       clearTimeout(settle);
+      stopWake();
       if (channel) void this.sb.removeChannel(channel);
     };
   }

@@ -113,7 +113,7 @@ export default function GamePage() {
   const [confirm, setConfirm] = useState<ConfirmRequest | null>(null);
   const [view, setView] = usePref("vista-giocatori", "grid", ["grid", "table"] as const);
   // Partita online: telefoni collegati, richieste di sedersi, personaggi dai profili dei giocatori.
-  const onlineInfo = useOnline(isSupabaseConfigured ? id : null);
+  const onlineInfo = useOnline(getOnline() ? id : null);
   const overrides = useRemoteCharacters(game.state, onlineInfo?.seats);
 
   const notify = useCallback((text: string, kind: ToastMessage["kind"] = "info") => {
@@ -148,7 +148,9 @@ export default function GamePage() {
     const last = game.history.at(-1);
     if (!last || !game.state) return;
     const label = describeEntry(last, game.state).title;
-    if (await game.undo()) notify(`Annullato: ${label}`);
+    const res = await game.undo();
+    if (res === true) notify(`Annullato: ${label}`);
+    else if (typeof res === "string") notify(res, "error");
   }
 
   if (state.status === "ended") {
@@ -293,7 +295,7 @@ export default function GamePage() {
                   Fai sedere
                 </button>
                 <button
-                  onClick={() => void getOnline()?.decideRequest(r.id, "rejected").then(() => onlineInfo.reload())}
+                  onClick={() => void getOnline()?.decideRequest(r.id, "rejected").then(() => onlineInfo.reload(), () => notify("Connessione assente: riprova.", "error"))}
                   aria-label={`Rifiuta ${r.name}`}
                   className="shrink-0 rounded-full p-1.5 text-white/60 hover:bg-white/10"
                 >
@@ -405,7 +407,7 @@ export default function GamePage() {
               <div className="flex gap-2">
                 <Button
                   variant="secondary"
-                  className="px-4"
+                  className="px-3 min-[360px]:px-4"
                   onClick={() => setSheet("add")}
                   disabled={!canChangeTable(state)}
                   aria-label="Aggiungi giocatore"
@@ -415,17 +417,17 @@ export default function GamePage() {
                 </Button>
                 <Button
                   variant="secondary"
-                  className="flex-1 whitespace-nowrap"
+                  className="min-w-0 flex-1 whitespace-nowrap px-3"
                   disabled={!canPlay(state)}
                   onClick={async () => {
                     haptic();
                     if (await run({ type: "hand_passed" })) notify("Mano passata: il mazzo gira e il piatto sale");
                   }}
                 >
-                  Passa <span className="font-semibold text-white/60">+{formatCents(state.baseBetCents)}</span>
+                  Passa <span className="hidden font-semibold text-white/60 min-[360px]:inline">+{formatCents(state.baseBetCents)}</span>
                 </Button>
                 <Button
-                  className="flex-[1.5] whitespace-nowrap"
+                  className="min-w-0 flex-[1.5] whitespace-nowrap px-3"
                   disabled={!canPlay(state) || state.potCents <= 0}
                   onClick={() => {
                     haptic();
@@ -549,10 +551,13 @@ export default function GamePage() {
           onUnlink={() =>
             void getOnline()
               ?.releaseSeat(id, sheet.player)
-              .then(() => {
-                notify(`Telefono di ${name(sheet.player)} scollegato`);
-                return onlineInfo?.reload();
-              })
+              .then(
+                () => {
+                  notify(`Telefono di ${name(sheet.player)} scollegato`);
+                  return onlineInfo?.reload();
+                },
+                () => notify("Connessione assente: riprova.", "error"),
+              )
           }
         />
       )}
@@ -570,6 +575,10 @@ export default function GamePage() {
               onClose={() => setSheet(null)}
               onDone={(text) => {
                 notify(text, "success");
+                void onlineInfo?.reload();
+              }}
+              onError={(text) => {
+                notify(text, "error");
                 void onlineInfo?.reload();
               }}
             />
@@ -603,7 +612,7 @@ function Hint({ children }: { children: React.ReactNode }) {
 
 function IconButton({ label, children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { label: string }) {
   return (
-    <button {...props} aria-label={label} title={label} className="rounded-full p-2.5 text-white/80 hover:bg-white/10 disabled:opacity-25">
+    <button {...props} aria-label={label} title={label} className="rounded-full p-2 text-white/80 hover:bg-white/10 disabled:opacity-25 min-[380px]:p-2.5">
       {children}
     </button>
   );
@@ -970,46 +979,94 @@ function ApproveSheet({
   run,
   onClose,
   onDone,
+  onError,
 }: {
   request: JoinRequest;
   state: GameState;
   run: Run;
   onClose: () => void;
   onDone: (text: string) => void;
+  onError: (text: string) => void;
 }) {
   const [after, setAfter] = useState<PlayerId | undefined>(defaultSeatAfter(state));
   const [busy, setBusy] = useState(false);
   const allowed = canChangeTable(state);
   const full = activePlayers(state).length >= state.rules.maxPlayers;
+  // c'è già al tavolo qualcuno con lo stesso nome (il master l'aveva aggiunto, o un tentativo
+  // precedente è andato a metà): basta collegare il suo telefono a quel giocatore
+  const sameName = activePlayers(state).find((p) => p.name.trim().toLowerCase() === request.name.trim().toLowerCase());
+
+  /** Avvisa il telefono di chi ha chiesto (riprova un paio di volte se la rete ha un vuoto). */
+  async function notifyPhone(playerId: PlayerId | null, status: "approved" | "rejected") {
+    const online = getOnline();
+    if (!online) return false;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        await online.decideRequest(request.id, status, playerId ?? undefined);
+        return true;
+      } catch {
+        await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+      }
+    }
+    return false;
+  }
 
   async function approve() {
-    const online = getOnline();
-    if (!online) return;
     setBusy(true);
     try {
       const playerId = newPlayerId();
       const last = defaultSeatAfter(state);
       const ok = await run({ type: "player_added", playerId, name: request.name, ...(after && after !== last ? { seatAfter: after } : {}) });
-      if (ok) {
-        // il telefono di chi ha chiesto vede l'approvazione e prende il posto da solo
-        await online.decideRequest(request.id, "approved", playerId);
+      if (!ok) return;
+      // il telefono di chi ha chiesto vede l'approvazione e prende il posto da solo
+      if (await notifyPhone(playerId, "approved")) {
         onDone(`${request.name} si siede al tavolo`);
         onClose();
+      } else {
+        onError(`${request.name} è al tavolo, ma il suo telefono non è stato avvisato: riapri la richiesta e premi "È lui".`);
       }
     } finally {
       setBusy(false);
     }
   }
 
+  async function link(playerId: PlayerId, name: string) {
+    setBusy(true);
+    try {
+      if (await notifyPhone(playerId, "approved")) {
+        onDone(`Telefono collegato a ${name}`);
+        onClose();
+      } else onError("Connessione assente: riprova.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function reject() {
-    await getOnline()?.decideRequest(request.id, "rejected");
-    onDone(`Richiesta di ${request.name} rifiutata`);
-    onClose();
+    setBusy(true);
+    try {
+      if (await notifyPhone(null, "rejected")) {
+        onDone(`Richiesta di ${request.name} rifiutata`);
+        onClose();
+      } else onError("Connessione assente: riprova.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
     <Sheet open onClose={onClose} title={`Fai sedere ${request.name}`}>
-      {!allowed ? (
+      {sameName ? (
+        <div className="rounded-xl bg-sky-500/10 p-3 text-sm text-sky-100">
+          <p>
+            Al tavolo c&apos;è già <strong>{sameName.name}</strong>. Se è lui, collega il suo telefono a quel posto (saldo e posto restano
+            quelli).
+          </p>
+          <Button className="mt-3 w-full" disabled={busy} onClick={() => link(sameName.id, sameName.name)}>
+            È lui: collega il suo telefono
+          </Button>
+        </div>
+      ) : !allowed ? (
         <p className="rounded-xl bg-amber-500/15 p-3 text-sm text-amber-200">
           Si può sedere solo a piatto pulito, quando nel piatto c&apos;è la sola messa. La richiesta resta in attesa.
         </p>
@@ -1021,12 +1078,14 @@ function ApproveSheet({
         <SeatPicker state={state} value={after} onChange={setAfter} />
       )}
       <div className="mt-5 flex gap-2">
-        <Button variant="ghost" className="flex-1" onClick={reject}>
+        <Button variant="ghost" className="flex-1" disabled={busy} onClick={reject}>
           Rifiuta
         </Button>
-        <Button className="flex-1" disabled={!allowed || full || busy} onClick={approve}>
-          Fai sedere
-        </Button>
+        {!sameName && (
+          <Button className="flex-1" disabled={!allowed || full || busy} onClick={approve}>
+            Fai sedere
+          </Button>
+        )}
       </div>
     </Sheet>
   );

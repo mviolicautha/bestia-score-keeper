@@ -1,6 +1,9 @@
 import type { GameEvent, GameStatus } from "@/engine";
 import { ensureUser, getSupabase, isSupabaseConfigured } from "./supabase";
 import { SupabaseGameRepository } from "./supabaseRepository";
+import { SaveConflictError } from "./resilience";
+
+export { SaveConflictError };
 
 /**
  * Accesso ai dati delle partite.
@@ -30,12 +33,19 @@ export interface GameRepository {
   getGame(gameId: string): Promise<GameMeta | null>;
   createGame(title: string, baseBetCents: number): Promise<string>;
   loadEvents(gameId: string): Promise<StoredEvent[]>;
-  appendEvent(gameId: string, event: GameEvent, status: GameStatus): Promise<void>;
-  removeLastEvent(gameId: string, status: GameStatus): Promise<void>;
+  /**
+   * Aggiunge un evento. Con `expectedCount` (quanti eventi ci sono ora secondo chi salva)
+   * rifiuta con SaveConflictError se nel frattempo la partita è cambiata: così un secondo
+   * dispositivo del master, o un nuovo tentativo dopo una risposta persa, non registra
+   * la stessa mano due volte.
+   */
+  appendEvent(gameId: string, event: GameEvent, status: GameStatus, expectedCount?: number): Promise<void>;
+  removeLastEvent(gameId: string, status: GameStatus, expectedCount?: number): Promise<void>;
   deleteGame(gameId: string): Promise<void>;
   /** Avvisa quando gli eventi cambiano (anche da un'altra scheda, es. la vista TV). */
   subscribe(gameId: string, onChange: (events: StoredEvent[]) => void): () => void;
 }
+
 
 const GAMES_KEY = "bestia:games";
 const eventsKey = (id: string) => `bestia:events:${id}`;
@@ -117,16 +127,18 @@ class LocalGameRepository implements GameRepository {
     return read<StoredEvent[]>(eventsKey(gameId), []);
   }
 
-  async appendEvent(gameId: string, event: GameEvent, status: GameStatus) {
+  async appendEvent(gameId: string, event: GameEvent, status: GameStatus, expectedCount?: number) {
     const events = read<StoredEvent[]>(eventsKey(gameId), []);
+    if (expectedCount !== undefined && events.length !== expectedCount) throw new SaveConflictError();
     events.push({ event, at: new Date().toISOString() });
     write(eventsKey(gameId), events);
     this.touch(gameId, status);
     this.emit(gameId);
   }
 
-  async removeLastEvent(gameId: string, status: GameStatus) {
+  async removeLastEvent(gameId: string, status: GameStatus, expectedCount?: number) {
     const events = read<StoredEvent[]>(eventsKey(gameId), []);
+    if (expectedCount !== undefined && events.length !== expectedCount) throw new SaveConflictError();
     // L'avvio della partita non si annulla.
     if (events.length <= 1) return;
     events.pop();
