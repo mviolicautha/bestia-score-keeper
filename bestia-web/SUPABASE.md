@@ -39,6 +39,7 @@ Poi, sempre nel SQL Editor, esegui anche gli altri script in [`supabase/migratio
   chiunque (solo master, membri della compagnia, chi è seduto o chi l'ha aperta con codice/link). Va eseguito **dopo**
   che il sito pubblicato ha la versione dell'app che lo conosce: le versioni precedenti non trovano più le partite
   degli altri dal codice.
+- `0008_storico.sql`: risultati salvati a fine partita, "Le mie partite" e import delle partite fatte in locale.
 
 ## 4. Copia URL e chiave pubblica
 Vai in **Project Settings → API Keys** (o **Data API**) e copia:

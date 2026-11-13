@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Armchair,
   ArrowLeft,
@@ -51,6 +51,7 @@ import { useOnline, useRemoteCharacters, useShareCharacters } from "@/lib/useOnl
 import { useGameGroup, type GameGroup } from "@/lib/useGameGroup";
 import { getGroups } from "@/lib/groups";
 import { getCharacter } from "@/lib/avatar/store";
+import { getHistory, resultsOf } from "@/lib/history";
 import { InviteSheet } from "@/components/InviteSheet";
 import { usePref } from "@/lib/prefs";
 import { isSupabaseConfigured } from "@/lib/supabase";
@@ -126,6 +127,7 @@ export default function GamePage() {
   const groupCharacters = gameGroup?.characters;
   const remoteShared = useMemo(() => ({ ...sharedCharacters, ...groupCharacters }), [sharedCharacters, groupCharacters]);
   const overrides = useRemoteCharacters(game.state, onlineInfo?.seats, remoteShared);
+  useSaveResults(id, onlineInfo?.isMaster ? game.state : null);
   // i personaggi creati qui li vedono anche telefoni e TV
   const shareCharacter = useShareCharacters(game.state, onlineInfo);
 
@@ -635,6 +637,25 @@ export default function GamePage() {
 type Run = (event: Parameters<ReturnType<typeof useGame>["dispatch"]>[0]) => Promise<boolean>;
 
 const amountColor = (c: number) => (c < 0 ? "text-loss" : c > 0 ? "text-gain" : "text-white/55");
+
+/**
+ * Storico: quando la partita termina il master ne salva i saldi finali (anche aprendo una
+ * partita già terminata, per quelle chiuse prima dello storico). Se viene riaperta, li toglie.
+ */
+function useSaveResults(gameId: string, state: GameState | null) {
+  const last = useRef<{ status: string; key: string } | null>(null);
+  useEffect(() => {
+    const history = getHistory();
+    if (!history || !state) return;
+    const results = resultsOf(state);
+    const key = `${state.status}:${JSON.stringify(results)}`;
+    const prev = last.current;
+    if (prev?.key === key) return;
+    last.current = { status: state.status, key };
+    if (state.status === "ended") void history.saveResults(gameId, results).catch(() => (last.current = prev));
+    else if (prev?.status === "ended") void history.saveResults(gameId, []).catch(() => (last.current = prev));
+  }, [gameId, state]);
+}
 
 function Centered({ children }: { children: React.ReactNode }) {
   return <div className="grid min-h-dvh place-items-center p-6 text-center text-white/60">{children}</div>;
