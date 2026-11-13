@@ -115,7 +115,9 @@ export function useShareCharacters(
 ): (name: string) => void {
   const store = useCharacterStore();
   const gameId = info?.isMaster ? info.game?.id : undefined;
-  const shared = info?.game ? (info.game.characters ?? {}) : null;
+  const hasGame = !!info?.game;
+  const sharedRaw = info?.game?.characters;
+  const shared = useMemo(() => (hasGame ? (sharedRaw ?? {}) : null), [hasGame, sharedRaw]);
   const reload = info?.reload;
   const pending = useRef(new Set<string>());
   const unsupported = useRef(false);

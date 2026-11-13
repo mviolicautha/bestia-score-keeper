@@ -160,3 +160,18 @@ describe("personaggi sul telefono", () => {
     expect(seat("Carla").querySelector("img")).toBeNull(); // nessun personaggio: l'iniziale
   });
 });
+
+describe("resoconto dal telefono", () => {
+  it("si apre il resoconto parziale, pronto da mandare su WhatsApp", async () => {
+    const { online } = await seed();
+    online.state.seats.push({ playerId: "p3", profileId: "u-io", character: null }); // sono Dario
+    render(<PlayerPage />);
+    await screen.findByText(/Classifica/);
+    await act(async () => (await screen.findByRole("button", { name: "Resoconto parziale" })).click());
+    const text = screen.getByLabelText("Testo del resoconto").textContent!;
+    expect(text).toMatch(/^🐗 \*Bestia · Venerdì\*/);
+    expect(text).toMatch(/Resoconto parziale/);
+    const wa = screen.getByRole("link", { name: /Manda su WhatsApp/ });
+    expect(decodeURIComponent(wa.getAttribute("href")!.split("text=")[1])).toBe(text);
+  });
+});

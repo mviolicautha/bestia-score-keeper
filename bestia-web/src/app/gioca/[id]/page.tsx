@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
-import { ArrowLeft, ArrowRight, Coins, Flame, LogOut, Shirt, Trophy } from "lucide-react";
+import { ArrowLeft, ArrowRight, Coins, Flame, LogOut, Share2, Shirt, Trophy } from "lucide-react";
 import { formatCents, simplifyDebts, type GameState, type HistoryEntry, type PlayerId, type PlayerState } from "@/engine";
 import { useGame } from "@/lib/useGame";
 import { getOnline } from "@/lib/online";
@@ -13,6 +13,7 @@ import { CharacterOverrides, useCharacterFor } from "@/lib/avatar/overrides";
 import { Character, CROPS } from "@/components/Character";
 import { CharacterEditor } from "@/components/CharacterEditor";
 import { HistoryList } from "@/components/HistoryList";
+import { ReportSheet } from "@/components/ReportSheet";
 import { Table } from "@/components/Table";
 import { SEAT_COLORS } from "@/components/ui";
 
@@ -104,6 +105,7 @@ function PlayerView({
   onLeaveSeat: () => void;
 }) {
   const character = useCharacterFor(me.name);
+  const [sharing, setSharing] = useState(false);
   const ended = state.status === "ended";
   const ranking = [...state.players].sort((a, b) => b.balanceCents - a.balanceCents);
   const rank = ranking.findIndex((p) => p.id === me.id) + 1;
@@ -250,6 +252,14 @@ function PlayerView({
         <h2 className="mb-1 font-bold">Ultime mani</h2>
         <HistoryList state={state} history={history} times={times} limit={5} />
       </section>
+
+      <button
+        onClick={() => setSharing(true)}
+        className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-felt-600 py-3 font-bold text-white hover:bg-felt-500"
+      >
+        <Share2 size={18} /> {ended ? "Condividi il resoconto" : "Resoconto parziale"}
+      </button>
+      {sharing && <ReportSheet state={state} history={history} times={times} title={title} onClose={() => setSharing(false)} />}
 
       <button onClick={onLeaveSeat} className="mx-auto mt-6 flex items-center gap-1.5 text-sm text-white/45 hover:text-white/70">
         <LogOut size={15} /> Scollega questo telefono
