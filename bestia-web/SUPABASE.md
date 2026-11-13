@@ -25,9 +25,11 @@ I giocatori entrano senza registrarsi, come "ospiti anonimi".
 Lo script crea partite, eventi, posti e richieste per unirsi, insieme alle regole di
 sicurezza: solo il master scrive la sua partita, tutti gli altri possono solo leggerla.
 
-Poi, sempre nel SQL Editor, esegui anche [`supabase/migrations/0002_giocatori.sql`](supabase/migrations/0002_giocatori.sql)
-(una riga): serve perché i personaggi che i giocatori creano sul proprio telefono compaiano
-subito su master e TV. Gli script vanno eseguiti **in ordine e una volta sola**.
+Poi, sempre nel SQL Editor, esegui anche gli altri script in [`supabase/migrations/`](supabase/migrations/),
+**in ordine e una volta sola**:
+- `0002_giocatori.sql` (una riga): i personaggi che i giocatori creano sul proprio telefono compaiono subito su master e TV;
+- `0003_salvataggi_sicuri.sql`: con la rete ballerina o con la partita aperta su due dispositivi del master, una mano
+  non viene mai registrata due volte (l'app funziona anche senza, ma senza questo controllo).
 
 ## 4. Copia URL e chiave pubblica
 Vai in **Project Settings → API Keys** (o **Data API**) e copia:
@@ -48,6 +50,14 @@ Puoi mandarle in chat a Claude, oppure fare da solo:
 3. Riavvia il server di sviluppo (`npm run dev`).
 
 `.env.local` resta solo sul tuo computer: non va su git.
+
+## Prima di una serata
+- **Pausa del progetto**: nel piano gratuito Supabase mette in pausa i progetti dopo una settimana senza attività.
+  Il sito su Vercel chiama ogni mattina `/api/keepalive` (vedi `vercel.json`), che fa una lettura leggera e lo tiene
+  sveglio. Se comunque trovi il progetto in pausa, lo riattivi dalla dashboard di Supabase (**Restore**).
+- **Accessi ospite**: Supabase limita gli accessi anonimi a 30 all'ora per indirizzo IP. Con il Wi-Fi di casa tutti i
+  telefoni escono con lo stesso indirizzo: per una serata normale basta, ma se serve si alza in
+  **Authentication → Rate Limits** (voce degli accessi anonimi).
 
 ## Da sapere
 - **Le partite salvate in locale non vengono trasferite**: con Supabase attivo l'app parte con l'elenco vuoto.

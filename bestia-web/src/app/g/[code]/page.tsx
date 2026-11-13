@@ -69,6 +69,10 @@ function Join({ game }: { game: OnlineGame }) {
       setBusy(true);
       setError(null);
       try {
+        // posto "fantasma" (il master ha annullato l'aggiunta di quel giocatore): lo libero,
+        // altrimenti il database non mi lascia prenderne un altro (un posto per telefono)
+        const stale = info?.mySeat;
+        if (stale && !g.state?.players.some((p) => p.id === stale)) await online.releaseSeat(game.id, stale);
         // il personaggio eventualmente già creato su questo telefono va nel profilo
         await online.claimSeat(game.id, playerId, playerName, getCharacter(playerName));
         router.replace(`/gioca/${game.id}`);
@@ -81,11 +85,11 @@ function Join({ game }: { game: OnlineGame }) {
         setBusy(false);
       }
     },
-    [game.id, router, info],
+    [game.id, router, info, g.state],
   );
 
-  // già seduto da questo telefono: dritto alla partita
-  const mySeat = info?.mySeat;
+  // già seduto da questo telefono (e il giocatore esiste ancora): dritto alla partita
+  const mySeat = info?.mySeat && g.state?.players.some((p) => p.id === info.mySeat) ? info.mySeat : null;
   useEffect(() => {
     if (mySeat) router.replace(`/gioca/${game.id}`);
   }, [mySeat, game.id, router]);
@@ -95,8 +99,11 @@ function Join({ game }: { game: OnlineGame }) {
   useEffect(() => {
     const playerId = approved?.playerId;
     const playerName = approved?.name;
-    if (playerId && playerName && !mySeat) void Promise.resolve().then(() => claim(playerId, playerName));
-  }, [approved?.playerId, approved?.name, mySeat, claim]);
+    // l'approvazione può arrivare prima dell'aggiornamento della partita con il nuovo giocatore:
+    // si aspetta di vederlo, altrimenti il posto sembrerebbe "fantasma"
+    const ready = !!playerId && !!g.state?.players.some((p) => p.id === playerId);
+    if (playerId && playerName && ready && !mySeat && info?.mySeat !== playerId) void Promise.resolve().then(() => claim(playerId, playerName));
+  }, [approved?.playerId, approved?.name, mySeat, claim, g.state, info?.mySeat]);
 
   async function ask() {
     const online = getOnline();

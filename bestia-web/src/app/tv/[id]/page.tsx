@@ -8,15 +8,15 @@ import { HistoryList } from "@/components/HistoryList";
 import { Avatar } from "@/components/ui";
 import { Table } from "@/components/Table";
 import { CharacterOverrides } from "@/lib/avatar/overrides";
-import { isSupabaseConfigured } from "@/lib/supabase";
 import { useOnline, useRemoteCharacters } from "@/lib/useOnline";
+import { getOnline } from "@/lib/online";
 
 /** Vista da proiettare: sola lettura, si aggiorna da sola. */
 export default function TvPage() {
   const { id } = useParams<{ id: string }>();
   const game = useGame(id);
   // personaggi creati dai giocatori sui loro telefoni
-  const onlineInfo = useOnline(isSupabaseConfigured ? id : null);
+  const onlineInfo = useOnline(getOnline() ? id : null);
   const overrides = useRemoteCharacters(game.state, onlineInfo?.seats);
 
   if (game.loading) return <Full>Caricamento…</Full>;

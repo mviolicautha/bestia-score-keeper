@@ -55,8 +55,12 @@ export default function PlayerPage() {
         title={info.game?.title ?? "Partita"}
         onEditCharacter={() => setEditing(true)}
         onLeaveSeat={async () => {
-          await getOnline()?.releaseSeat(id, me.id);
-          await info.reload();
+          try {
+            await getOnline()?.releaseSeat(id, me.id);
+            await info.reload();
+          } catch {
+            /* senza rete non cambia nulla: si può riprovare */
+          }
         }}
       />
       {editing && (
@@ -64,7 +68,13 @@ export default function PlayerPage() {
           name={me.name}
           onClose={() => setEditing(false)}
           // salvato anche nel profilo: lo vedono master, TV e gli altri telefoni
-          onSaved={() => void getOnline()?.saveProfile({ character: getCharacter(me.name) })}
+          onSaved={() =>
+            void getOnline()
+              ?.saveProfile({ character: getCharacter(me.name) })
+              .catch(() => {
+                /* senza rete resta salvato su questo telefono; si sincronizza al prossimo salvataggio */
+              })
+          }
         />
       )}
     </CharacterOverrides>
