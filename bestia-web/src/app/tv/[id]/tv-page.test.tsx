@@ -46,7 +46,7 @@ describe("vista TV", () => {
     await repo.appendEvent(id, { type: "hand_played", winners: [{ playerIds: ["p2"], tricks: 3 }], losers: [] }, "in_progress");
     await repo.appendEvent(id, { type: "game_ended" }, "ended");
     render(<TvPage />);
-    expect(await screen.findByText("Chi paga chi")).toBeInTheDocument();
+    expect(await screen.findByText("Saldi da pareggiare")).toBeInTheDocument();
     expect(screen.getByText("Partita terminata", { exact: false })).toBeInTheDocument();
   });
 

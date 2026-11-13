@@ -870,7 +870,7 @@ function EndSheet({ open, onClose, state, run }: { open: boolean; onClose: () =>
       {canEnd(state) ? (
         <>
           <p className="text-sm text-white/70">
-            La messa ({formatCents(state.potCents)}) torna al mazziere e vengono calcolati i conti finali, con chi deve pagare chi. Potrai
+            La messa ({formatCents(state.potCents)}) torna al mazziere e vengono calcolati i saldi finali di ognuno. Potrai
             riaprire la partita se serve.
           </p>
           <Button variant="danger" className="mt-5 w-full" onClick={() => run({ type: "game_ended" }).then((ok) => ok && onClose())}>

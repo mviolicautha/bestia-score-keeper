@@ -131,8 +131,8 @@ describe("vista del giocatore", () => {
       await repo.appendEvent(id, ev, ev.type === "game_ended" ? "ended" : "in_progress");
     }
     render(<PlayerPage />);
-    expect(await screen.findByRole("heading", { name: "I tuoi conti" })).toBeTruthy();
-    expect(screen.getByText(/Devi dare a/).textContent).toContain("Carla");
+    expect(await screen.findByRole("heading", { name: "Il tuo saldo" })).toBeTruthy();
+    expect(screen.getByText(/Verso/).textContent).toContain("Carla");
   });
 
   it("se non ho preso un posto mi rimanda a scegliere chi sono", async () => {

@@ -7,6 +7,7 @@ import { colorIndex, formatCents, simplifyDebts, type GameState, type HistoryEnt
 import { Button } from "./Sheet";
 import { Avatar } from "./ui";
 import { ReportSheet } from "./ReportSheet";
+import { Disclaimer } from "./Disclaimer";
 
 /** Schermata di fine partita: classifica, chi paga chi, record della serata. */
 export function Results({
@@ -64,16 +65,16 @@ export function Results({
         ))}
       </ol>
 
-      <h2 className="mb-2 mt-8 text-lg font-bold">Chi paga chi</h2>
+      <h2 className="mb-2 mt-8 text-lg font-bold">Per pareggiare i saldi</h2>
       {transfers.length === 0 ? (
-        <p className="text-white/50">Nessun pagamento: tutti in pari.</p>
+        <p className="text-white/50">Saldi già in pari.</p>
       ) : (
         <ul className="space-y-2">
           {transfers.map((t, i) => (
             <li key={i} className="flex items-center gap-2 rounded-2xl bg-night-800 px-3 py-2.5 ring-1 ring-white/5">
               <Avatar name={name(t.from)} seat={seat(t.from)} size="sm" />
               <span className="font-semibold">{name(t.from)}</span>
-              <ArrowRight size={16} className="text-white/40" aria-label="paga a" />
+              <ArrowRight size={16} className="text-white/40" aria-label="verso" />
               <Avatar name={name(t.to)} seat={seat(t.to)} size="sm" />
               <span className="min-w-0 flex-1 truncate font-semibold">{name(t.to)}</span>
               <span className="tabular font-black text-gold-400">{formatCents(t.amountCents)}</span>
@@ -82,8 +83,7 @@ export function Results({
         </ul>
       )}
       <p className="mt-2 text-xs text-white/40">
-        Il minimo numero di pagamenti per chiudere i conti. Con gli account, questi debiti finiranno nel registro e si
-        potranno segnare come saldati.
+        Il minimo numero di passaggi per riportare tutti i saldi a zero.
       </p>
 
       <h2 className="mb-2 mt-8 text-lg font-bold">La serata</h2>
@@ -116,6 +116,7 @@ export function Results({
           </Button>
         )}
       </div>
+      <Disclaimer className="mt-6" />
       {sharing && <ReportSheet state={state} history={history} times={times} title={title} onClose={() => setSharing(false)} />}
     </main>
   );
