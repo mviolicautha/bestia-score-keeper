@@ -1,8 +1,8 @@
 "use client";
 
-import { createContext, useContext } from "react";
+import { createContext, useCallback, useContext } from "react";
 import type { CharacterConfig } from "./catalog";
-import { characterKey, useCharacter } from "./store";
+import { characterKey, getCharacter, useCharacter } from "./store";
 
 /**
  * Personaggi che arrivano da fuori (i telefoni dei giocatori, via Supabase), per nome.
@@ -19,4 +19,10 @@ export function useCharacterFor(name: string): CharacterConfig | null {
   const remote = useContext(Overrides)[characterKey(name)];
   const local = useCharacter(name);
   return remote ?? local;
+}
+
+/** Per disegnare fuori da React (es. l'immagine del resoconto): personaggio per nome, con la stessa priorità. */
+export function useCharacterLookup(): (name: string) => CharacterConfig | null {
+  const remote = useContext(Overrides);
+  return useCallback((name: string) => remote[characterKey(name)] ?? getCharacter(name), [remote]);
 }

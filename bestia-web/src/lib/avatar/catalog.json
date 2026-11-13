@@ -111,6 +111,18 @@
   ],
   "items": [
     {
+      "id": "back_angry_girls",
+      "category": "back",
+      "label": "Ragazze arrabbiate",
+      "src": "/avatars/back/back_angry_girls.webp",
+      "box": [
+        0,
+        0.158,
+        1,
+        1
+      ]
+    },
+    {
       "id": "back_aura",
       "category": "back",
       "label": "Aura",
@@ -131,6 +143,18 @@
         0.178,
         0.23,
         0.836,
+        1
+      ]
+    },
+    {
+      "id": "back_dragon",
+      "category": "back",
+      "label": "Drago",
+      "src": "/avatars/back/back_dragon.webp",
+      "box": [
+        0,
+        0.066,
+        1,
         1
       ]
     },
@@ -171,6 +195,30 @@
       ]
     },
     {
+      "id": "back_girls",
+      "category": "back",
+      "label": "Ragazze",
+      "src": "/avatars/back/back_girls.webp",
+      "box": [
+        0.074,
+        0.166,
+        0.961,
+        1
+      ]
+    },
+    {
+      "id": "back_lgbt_flag",
+      "category": "back",
+      "label": "Bandiera arcobaleno",
+      "src": "/avatars/back/back_lgbt_flag.webp",
+      "box": [
+        0,
+        0.127,
+        0.967,
+        0.996
+      ]
+    },
+    {
       "id": "back_ludopatia",
       "category": "back",
       "label": "Demone del gioco",
@@ -180,6 +228,30 @@
         0,
         1,
         0.92
+      ]
+    },
+    {
+      "id": "back_smooth",
+      "category": "back",
+      "label": "Liscio",
+      "src": "/avatars/back/back_smooth.webp",
+      "box": [
+        0.041,
+        0.014,
+        0.959,
+        1
+      ]
+    },
+    {
+      "id": "back_with_the_guys",
+      "category": "back",
+      "label": "Con i ragazzi",
+      "src": "/avatars/back/back_with_the_guys.webp",
+      "box": [
+        0,
+        0.012,
+        1,
+        1
       ]
     },
     {
@@ -267,6 +339,18 @@
       ]
     },
     {
+      "id": "outfit_grandma",
+      "category": "outfit",
+      "label": "Cardigan della nonna",
+      "src": "/avatars/outfit/outfit_grandma.webp",
+      "box": [
+        0.168,
+        0.479,
+        0.832,
+        1
+      ]
+    },
+    {
       "id": "outfit_homeless",
       "category": "outfit",
       "label": "Maglia strappata",
@@ -275,6 +359,18 @@
         0.191,
         0.479,
         0.809,
+        1
+      ]
+    },
+    {
+      "id": "outfit_milo",
+      "category": "outfit",
+      "label": "Gilet patchwork",
+      "src": "/avatars/outfit/outfit_milo.webp",
+      "box": [
+        0.195,
+        0.479,
+        0.807,
         1
       ]
     },
@@ -375,6 +471,18 @@
       ]
     },
     {
+      "id": "outfit_tshirt",
+      "category": "outfit",
+      "label": "Tutto sotto controllo",
+      "src": "/avatars/outfit/outfit_tshirt.webp",
+      "box": [
+        0.195,
+        0.479,
+        0.807,
+        0.998
+      ]
+    },
+    {
       "id": "outfit_tshirt_iqos",
       "category": "outfit",
       "label": "Maglietta IQOS",
@@ -432,6 +540,18 @@
         0.475,
         0.6,
         0.547
+      ]
+    },
+    {
+      "id": "mouth_albania",
+      "category": "mouth",
+      "label": "Bandana Albania",
+      "src": "/avatars/mouth/mouth_albania.webp",
+      "box": [
+        0.369,
+        0.391,
+        0.629,
+        0.695
       ]
     },
     {
@@ -595,6 +715,19 @@
       "hairMask": "/avatars/hairmask/hat_cappello_gnomo.png"
     },
     {
+      "id": "hat_carbon_helmet",
+      "category": "hat",
+      "label": "Casco in carbonio",
+      "src": "/avatars/hat/hat_carbon_helmet.webp",
+      "box": [
+        0.314,
+        0.166,
+        0.686,
+        0.697
+      ],
+      "hairMask": "/avatars/hairmask/hat_carbon_helmet.png"
+    },
+    {
       "id": "hat_chicken",
       "category": "hat",
       "label": "Gallina",
@@ -753,6 +886,34 @@
       "hairMask": "/avatars/hairmask/hat_jellyfish.png"
     },
     {
+      "id": "hat_jiad",
+      "category": "hat",
+      "label": "Passamontagna",
+      "src": "/avatars/hat/hat_jiad.webp",
+      "box": [
+        0.344,
+        0.229,
+        0.656,
+        0.701
+      ],
+      "hairMask": "/avatars/hairmask/hat_jiad.png",
+      "hidesHair": "all",
+      "hidesFace": true
+    },
+    {
+      "id": "hat_military_helmet",
+      "category": "hat",
+      "label": "Elmetto militare",
+      "src": "/avatars/hat/hat_military_helmet.webp",
+      "box": [
+        0.307,
+        0.146,
+        0.693,
+        0.635
+      ],
+      "hairMask": "/avatars/hairmask/hat_military_helmet.png"
+    },
+    {
       "id": "hat_muratozoo",
       "category": "hat",
       "label": "Muratozoo",
@@ -807,6 +968,19 @@
       "hairMask": "/avatars/hairmask/hat_santa.png"
     },
     {
+      "id": "hat_shark",
+      "category": "hat",
+      "label": "Squalo",
+      "src": "/avatars/hat/hat_shark.webp",
+      "box": [
+        0.215,
+        0.037,
+        0.785,
+        0.715
+      ],
+      "hairMask": "/avatars/hairmask/hat_shark.png"
+    },
+    {
       "id": "hat_sombrero",
       "category": "hat",
       "label": "Sombrero",
@@ -831,6 +1005,19 @@
         0.408
       ],
       "hairMask": "/avatars/hairmask/hat_strange.png"
+    },
+    {
+      "id": "hat_straw_hat",
+      "category": "hat",
+      "label": "Cappello di paglia",
+      "src": "/avatars/hat/hat_straw_hat.webp",
+      "box": [
+        0.258,
+        0.141,
+        0.742,
+        0.418
+      ],
+      "hairMask": "/avatars/hairmask/hat_straw_hat.png"
     },
     {
       "id": "costume_book_of_ra",
@@ -872,6 +1059,20 @@
         1
       ],
       "hairMask": "/avatars/hairmask/costume_hoodie.png",
+      "hidesHair": "all"
+    },
+    {
+      "id": "costume_lupo_lucio",
+      "category": "costume",
+      "label": "Lupo Lucio",
+      "src": "/avatars/costume/costume_lupo_lucio.webp",
+      "box": [
+        0.176,
+        0.084,
+        0.826,
+        1
+      ],
+      "hairMask": "/avatars/hairmask/costume_lupo_lucio.png",
       "hidesHair": "all"
     },
     {
@@ -923,6 +1124,18 @@
         0.135,
         0.699,
         0.865,
+        0.998
+      ]
+    },
+    {
+      "id": "extra_pig",
+      "category": "extra",
+      "label": "Maialino",
+      "src": "/avatars/extra/extra_pig.webp",
+      "box": [
+        0.234,
+        0.666,
+        0.672,
         0.998
       ]
     }

@@ -55,4 +55,22 @@ describe("vista TV", () => {
     render(<TvPage />);
     expect(await screen.findByText(/non trovata/)).toBeInTheDocument();
   });
+
+  it("una bestia appena giocata compare a tutto schermo; all'apertura le mani vecchie no", async () => {
+    const { id, repo } = await seed();
+    await repo.appendEvent(id, { type: "hand_played", winners: [{ playerIds: ["p2"], tricks: 3 }], losers: [] }, "in_progress");
+    render(<TvPage />);
+    await screen.findByText("Fa le carte", { exact: false });
+    expect(screen.queryByRole("status")).toBeNull();
+    await act(() => repo.appendEvent(id, { type: "hand_played", winners: [{ playerIds: ["p0"], tricks: 3 }], losers: [["p3"]] }, "in_progress"));
+    const status = await screen.findByRole("status");
+    expect(status).toHaveTextContent("BESTIA!");
+    expect(norm(status.textContent)).toContain("Dario paga 0,30 €");
+  });
+
+  it("i suoni partono spenti, con il pulsante per attivarli", async () => {
+    await seed();
+    render(<TvPage />);
+    expect(await screen.findByRole("button", { name: /Attiva i suoni/ })).toHaveAttribute("aria-pressed", "false");
+  });
 });

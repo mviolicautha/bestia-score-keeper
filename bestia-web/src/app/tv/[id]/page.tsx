@@ -1,7 +1,8 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { ArrowRight } from "lucide-react";
+import { useState } from "react";
+import { ArrowRight, Volume2, VolumeX } from "lucide-react";
 import { formatCents, simplifyDebts, type HistoryEntry, type PlayerId } from "@/engine";
 import { useGame } from "@/lib/useGame";
 import { HistoryList } from "@/components/HistoryList";
@@ -10,6 +11,9 @@ import { Table } from "@/components/Table";
 import { CharacterOverrides } from "@/lib/avatar/overrides";
 import { useOnline, useRemoteCharacters } from "@/lib/useOnline";
 import { getOnline } from "@/lib/online";
+import { usePref } from "@/lib/prefs";
+import { isUnlocked, play, unlock } from "@/lib/sounds";
+import { Moments } from "@/components/Moments";
 
 /** Vista da proiettare: sola lettura, si aggiorna da sola. */
 export default function TvPage() {
@@ -18,6 +22,17 @@ export default function TvPage() {
   // personaggi creati dal master e dai giocatori sui loro telefoni
   const onlineInfo = useOnline(getOnline() ? id : null);
   const overrides = useRemoteCharacters(game.state, onlineInfo?.seats, onlineInfo?.game?.characters);
+  // suoni: scelti una volta su questo dispositivo, ma il browser li sblocca solo dopo un tocco
+  const [soundPref, setSoundPref] = usePref("tv-suoni", "off", ["on", "off"] as const);
+  const [unlocked, setUnlocked] = useState(false);
+  const soundOn = soundPref === "on" && (unlocked || isUnlocked());
+  async function toggleSound() {
+    if (soundPref === "on" && soundOn) return setSoundPref("off");
+    const ok = await unlock();
+    setUnlocked(ok);
+    setSoundPref("on");
+    if (ok) play("win");
+  }
 
   if (game.loading) return <Full>Caricamento…</Full>;
   if (!game.state) return <Full>Partita non trovata su questo dispositivo.</Full>;
@@ -42,13 +57,24 @@ export default function TvPage() {
             {ended ? "Partita terminata" : `Fa le carte ${dealer}`} · {state.handsPlayed} mani giocate
           </p>
         </div>
+        <button
+          onClick={() => void toggleSound()}
+          className={`flex items-center gap-[0.4em] rounded-full px-[0.9em] py-[0.35em] text-[0.8em] font-bold ring-1 transition ${
+            soundOn ? "bg-night-800 text-white/70 ring-white/10" : "bg-gold-400/15 text-gold-400 ring-gold-400/40"
+          }`}
+          aria-pressed={soundOn}
+        >
+          {soundOn ? <Volume2 className="h-[1.1em] w-[1.1em]" /> : <VolumeX className="h-[1.1em] w-[1.1em]" />}
+          {soundOn ? "Suoni attivi" : soundPref === "on" ? "Tocca per i suoni" : "Attiva i suoni"}
+        </button>
       </header>
+      <Moments state={state} history={game.history} sound={soundOn} />
 
       <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[1.3fr_1fr] gap-[2vh] landscape:grid-cols-[1.7fr_1fr] landscape:grid-rows-1 landscape:gap-[2vw]">
         {/* Il tavolo occupa lo spazio disponibile mantenendo le proporzioni. */}
         <section className="grid min-h-0 place-items-center [container-type:size]">
           <div className="w-[min(100cqw,160cqh)]">
-            <Table state={state} variant="tv" flash={flash} flashKey={game.history.length} />
+            <Table state={state} variant="tv" flash={flash} flashKey={game.history.length} animatePot />
           </div>
         </section>
 
