@@ -1,4 +1,5 @@
 import { vi } from "vitest";
+import type { CharacterConfig } from "@/lib/avatar/catalog";
 import type { JoinRequest, OnlineGame, OnlineService, SeatClaim } from "@/lib/online";
 
 /**
@@ -25,6 +26,11 @@ export function fakeOnline(game: OnlineGame, myId = "u-io") {
       notify();
     }),
     saveProfile: vi.fn(async () => {}),
+    shareCharacters: vi.fn(async (_g: string, characters: Record<string, CharacterConfig>) => {
+      game.characters = characters;
+      notify();
+      return true;
+    }),
     requestToJoin: vi.fn(async (gameId: string, name: string) => {
       const r = { id: `r${state.requests.length + 1}`, gameId, profileId: myId, name: name.trim(), status: "pending" as const, playerId: null, createdAt: "t" };
       state.requests.push(r);

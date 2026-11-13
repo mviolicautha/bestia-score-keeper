@@ -16,7 +16,22 @@ export interface OnlineGame {
   code: string;
   title: string;
   masterId: string;
+  /**
+   * Personaggi creati dal master sul suo dispositivo, per nome (chiave di characterKey):
+   * li vedono anche i telefoni e la TV. Vuoto finché non c'è 0004_personaggi_condivisi.sql.
+   */
+  characters?: Record<string, CharacterConfig>;
 }
+
+interface GameRow {
+  id: string;
+  code: string;
+  title: string;
+  master_id: string;
+  characters?: Record<string, CharacterConfig> | null;
+}
+// select("*"): funziona anche se la colonna dei personaggi non è ancora stata aggiunta
+const toGame = (r: GameRow): OnlineGame => ({ id: r.id, code: r.code, title: r.title, masterId: r.master_id, characters: r.characters ?? {} });
 
 export interface SeatClaim {
   playerId: string;
@@ -77,20 +92,26 @@ export class OnlineService {
 
   async findGameByCode(code: string): Promise<OnlineGame | null> {
     await this.user();
-    const row = check(
-      await this.sb.from("games").select("id, code, title, master_id").eq("code", normalizeCode(code)).maybeSingle(),
-      "Codice partita",
-    ) as { id: string; code: string; title: string; master_id: string } | null;
-    return row ? { id: row.id, code: row.code, title: row.title, masterId: row.master_id } : null;
+    const row = check(await this.sb.from("games").select("*").eq("code", normalizeCode(code)).maybeSingle(), "Codice partita") as GameRow | null;
+    return row ? toGame(row) : null;
   }
 
   async getGame(gameId: string): Promise<OnlineGame | null> {
     await this.user();
-    const row = check(
-      await this.sb.from("games").select("id, code, title, master_id").eq("id", gameId).maybeSingle(),
-      "Partita",
-    ) as { id: string; code: string; title: string; master_id: string } | null;
-    return row ? { id: row.id, code: row.code, title: row.title, masterId: row.master_id } : null;
+    const row = check(await this.sb.from("games").select("*").eq("id", gameId).maybeSingle(), "Partita") as GameRow | null;
+    return row ? toGame(row) : null;
+  }
+
+  /**
+   * Il master condivide i personaggi creati sul suo dispositivo. false se il database non ha
+   * ancora la colonna (0004_personaggi_condivisi.sql): si vedono solo sul suo dispositivo.
+   */
+  async shareCharacters(gameId: string, characters: Record<string, CharacterConfig>): Promise<boolean> {
+    await this.user();
+    const { error } = await this.sb.from("games").update({ characters }).eq("id", gameId);
+    if (!error) return true;
+    if (error.code === "PGRST204" || error.code === "42703" || /characters/.test(error.message)) return false;
+    throw new Error(`Personaggi: ${error.message}`);
   }
 
   /** Posti presi, con il personaggio del profilo di chi li ha presi. */
@@ -165,7 +186,7 @@ export class OnlineService {
   }
 
   /**
-   * Avvisa quando cambiano posti, richieste o profili di questa partita.
+   * Avvisa quando cambiano posti, richieste, profili o personaggi condivisi di questa partita.
    * Il canale si apre dopo aver passato il token: senza, le regole di sicurezza non mandano nulla.
    */
   subscribe(gameId: string, onChange: () => void): () => void {
@@ -186,6 +207,8 @@ export class OnlineService {
           .channel(`online:${id()}`)
           .on("postgres_changes", { event: "*", schema: "public", table: "game_seats", filter: `game_id=eq.${gameId}` }, onChange)
           .on("postgres_changes", { event: "*", schema: "public", table: "join_requests", filter: `game_id=eq.${gameId}` }, onChange)
+          // la partita stessa: i personaggi condivisi dal master
+          .on("postgres_changes", { event: "UPDATE", schema: "public", table: "games", filter: `id=eq.${gameId}` }, onChange)
           .subscribe((status) => {
             if (status === "SUBSCRIBED") onChange();
           }),

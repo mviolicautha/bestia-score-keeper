@@ -45,7 +45,7 @@ import { Avatar, ConfirmDialog, haptic, Toast, type ConfirmRequest, type ToastMe
 import { CharacterEditor } from "@/components/CharacterEditor";
 import { CharacterOverrides, useCharacterFor } from "@/lib/avatar/overrides";
 import { getOnline, type JoinRequest } from "@/lib/online";
-import { useOnline, useRemoteCharacters } from "@/lib/useOnline";
+import { useOnline, useRemoteCharacters, useShareCharacters } from "@/lib/useOnline";
 import { InviteSheet } from "@/components/InviteSheet";
 import { usePref } from "@/lib/prefs";
 import { isSupabaseConfigured } from "@/lib/supabase";
@@ -114,7 +114,9 @@ export default function GamePage() {
   const [view, setView] = usePref("vista-giocatori", "grid", ["grid", "table"] as const);
   // Partita online: telefoni collegati, richieste di sedersi, personaggi dai profili dei giocatori.
   const onlineInfo = useOnline(getOnline() ? id : null);
-  const overrides = useRemoteCharacters(game.state, onlineInfo?.seats);
+  const overrides = useRemoteCharacters(game.state, onlineInfo?.seats, onlineInfo?.game?.characters);
+  // i personaggi creati qui li vedono anche telefoni e TV
+  const shareCharacter = useShareCharacters(game.state, onlineInfo);
 
   const notify = useCallback((text: string, kind: ToastMessage["kind"] = "info") => {
     setToast({ text, kind, id: Date.now() });
@@ -588,7 +590,10 @@ export default function GamePage() {
         <CharacterEditor
           name={name(sheet.character)}
           onClose={() => setSheet(null)}
-          onSaved={() => notify(`Personaggio di ${name(sheet.character)} salvato`, "success")}
+          onSaved={() => {
+            shareCharacter(name(sheet.character));
+            notify(`Personaggio di ${name(sheet.character)} salvato`, "success");
+          }}
         />
       )}
     </div>

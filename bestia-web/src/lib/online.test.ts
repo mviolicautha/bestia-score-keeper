@@ -47,7 +47,7 @@ describe("giocatori online", () => {
   it("trova la partita dal codice", async () => {
     const f = fake({ games: [{ id: "g1", code: "KX7P2", title: "Venerdì", master_id: "u-master" }] });
     const s = new OnlineService(f.sb, me);
-    expect(await s.findGameByCode("kx7p2")).toEqual({ id: "g1", code: "KX7P2", title: "Venerdì", masterId: "u-master" });
+    expect(await s.findGameByCode("kx7p2")).toEqual({ id: "g1", code: "KX7P2", title: "Venerdì", masterId: "u-master", characters: {} });
     expect(await s.findGameByCode("NOPE1")).toBeNull();
   });
 
@@ -84,5 +84,34 @@ describe("giocatori online", () => {
     expect(r).toMatchObject({ name: "Marco", status: "pending" });
     await s.decideRequest("r1", "approved", "p9");
     expect(f.writes.at(-1)).toMatchObject({ op: "update", table: "join_requests", row: { status: "approved", player_id: "p9" }, filters: [["id", "r1"]] });
+  });
+});
+
+describe("personaggi condivisi dal master (0004_personaggi_condivisi.sql)", () => {
+  const withUpdate = (error: { message: string; code?: string } | null) => {
+    const sent: unknown[] = [];
+    const sb = { from: () => ({ update: (row: unknown) => (sent.push(row), { eq: async () => ({ error }) }) }) };
+    return { svc: new OnlineService(sb as unknown as SupabaseClient, me), sent };
+  };
+
+  it("li salva nella partita", async () => {
+    const { svc, sent } = withUpdate(null);
+    expect(await svc.shareCharacters("g1", { anna: { hair: "x" } })).toBe(true);
+    expect(sent).toEqual([{ characters: { anna: { hair: "x" } } }]);
+  });
+
+  it("senza la colonna nel database non dà errore: dice solo che non può", async () => {
+    const { svc } = withUpdate({ code: "PGRST204", message: "Could not find the 'characters' column of 'games' in the schema cache" });
+    expect(await svc.shareCharacters("g1", {})).toBe(false);
+  });
+
+  it("gli errori di rete restano errori (si riprova)", async () => {
+    const { svc } = withUpdate({ message: "Failed to fetch" });
+    await expect(svc.shareCharacters("g1", {})).rejects.toThrow();
+  });
+
+  it("legge la partita anche se la colonna non c'è ancora", async () => {
+    const { sb } = fake({ games: [{ id: "g1", code: "AAAAA", title: "T", master_id: "m" }] });
+    expect(await new OnlineService(sb, me).getGame("g1")).toEqual({ id: "g1", code: "AAAAA", title: "T", masterId: "m", characters: {} });
   });
 });

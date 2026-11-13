@@ -5,7 +5,8 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getRepository } from "@/lib/repository";
 import { setOnlineForTests } from "@/lib/online";
-import { resetCharacterCache } from "@/lib/avatar/store";
+import { resetCharacterCache, saveCharacter } from "@/lib/avatar/store";
+import { itemsOf, type CharacterConfig } from "@/lib/avatar/catalog";
 import { route } from "@/test/setup-next";
 import { fakeOnline } from "@/test/fakeOnline";
 import GamePage from "./page";
@@ -23,14 +24,14 @@ afterEach(() => {
 });
 
 /** Partita con 5 giocatori; questo dispositivo è il master (u-io). */
-async function openAsMaster() {
+async function openAsMaster(characters?: Record<string, CharacterConfig>) {
   const repo = getRepository();
   const id = await repo.createGame("Venerdì", 30);
   for (const [i, name] of ["Anna", "Bruno", "Carla", "Dario", "Elena"].entries()) {
     await repo.appendEvent(id, { type: "player_added", playerId: `p${i}`, name }, "in_progress");
   }
   route.id = id;
-  const online = fakeOnline({ id, code: "KX7P2", title: "Venerdì", masterId: "u-io" });
+  const online = fakeOnline({ id, code: "KX7P2", title: "Venerdì", masterId: "u-io", characters });
   setOnlineForTests(online.service);
   render(<GamePage />);
   await screen.findByText(/Messa 0,30 €/);
@@ -90,5 +91,24 @@ describe("master con giocatori dal telefono", () => {
     expect(screen.getByText("Segue la partita dal suo telefono")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Scollega" }));
     await waitFor(() => expect(online.calls.releaseSeat).toHaveBeenCalledWith(id, "p1"));
+  });
+
+  it("i personaggi creati sul master finiscono nella partita, così li vedono anche telefoni e TV", async () => {
+    const [h1, h2] = itemsOf("hair").map((i) => i.id);
+    saveCharacter("Anna", { hair: h1 }); // creato prima della partita, su questo dispositivo
+    saveCharacter("Zeno", { hair: h2 }); // non è al tavolo: non si condivide
+    const { online } = await openAsMaster({});
+    await waitFor(() => expect(online.calls.shareCharacters).toHaveBeenCalledWith(expect.any(String), { anna: { hair: h1 } }));
+    // un giocatore aggiunto più tardi, con un personaggio già salvato qui: si aggiunge da solo
+    saveCharacter("Bruno", { hair: h2 });
+    await waitFor(() => expect(online.calls.shareCharacters).toHaveBeenLastCalledWith(expect.any(String), { anna: { hair: h1 }, bruno: { hair: h2 } }));
+  });
+
+  it("un secondo dispositivo del master con un personaggio diverso non sovrascrive quello della partita", async () => {
+    const [h1, h2] = itemsOf("hair").map((i) => i.id);
+    saveCharacter("Anna", { hair: h2 });
+    const { online } = await openAsMaster({ anna: { hair: h1 } });
+    await new Promise((r) => setTimeout(r, 400));
+    expect(online.calls.shareCharacters).not.toHaveBeenCalled();
   });
 });
