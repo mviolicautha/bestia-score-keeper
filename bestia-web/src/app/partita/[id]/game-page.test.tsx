@@ -235,7 +235,7 @@ describe("schermata del master", () => {
     await user.click(screen.getByRole("button", { name: /Termina partita/ }));
     await user.click(screen.getByRole("button", { name: "Termina e calcola i conti" }));
 
-    expect(await screen.findByText("Chi paga chi")).toBeTruthy();
+    expect(await screen.findByText("Per pareggiare i saldi")).toBeTruthy();
     expect(screen.getByText(/Vince la serata/)).toBeTruthy();
     // Carla ha preso 0,60 €; Anna e Bruno avevano versato 0,30 € ciascuno.
     const transfers = screen.getAllByText("0,30 €").length;

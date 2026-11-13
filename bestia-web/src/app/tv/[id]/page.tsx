@@ -111,7 +111,7 @@ export default function TvPage() {
           <section className="min-h-0 flex-1 overflow-hidden rounded-[1.2em] bg-night-800 p-[1em] ring-1 ring-white/5">
             {ended ? (
               <>
-                <h2 className="mb-[0.6em] text-[1.2em] font-bold">Chi paga chi</h2>
+                <h2 className="mb-[0.6em] text-[1.2em] font-bold">Saldi da pareggiare</h2>
                 <ul className="space-y-[0.5em]">
                   {simplifyDebts(Object.fromEntries(state.players.map((p) => [p.id, p.balanceCents]))).map((t, i) => (
                     <li key={i} className="flex items-center gap-[0.5em]">

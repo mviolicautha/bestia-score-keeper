@@ -11,6 +11,7 @@ import { Button, Sheet } from "@/components/Sheet";
 import { ConfirmDialog, type ConfirmRequest } from "@/components/ui";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { normalizeCode } from "@/lib/online";
+import { Disclaimer } from "@/components/Disclaimer";
 
 const BET_STEP = 30;
 const INSTALL_HINT_KEY = "bestia:install-hint-dismissed";
@@ -128,6 +129,7 @@ export default function Home() {
           ? "Qui ci sono le partite che hai creato tu (sei il master). Per seguire quella di un altro, inquadra il suo QR o inserisci il codice."
           : "Le partite sono salvate su questo dispositivo. Account, inviti e storico condiviso arriveranno con il backend."}
       </p>
+      <Disclaimer className="mt-6" />
 
       <Sheet open={creating} onClose={() => setCreating(false)} title="Nuova partita">
         <label className="block text-sm text-white/60" htmlFor="title">

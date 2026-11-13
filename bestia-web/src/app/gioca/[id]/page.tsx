@@ -188,9 +188,9 @@ function PlayerView({
 
       {ended ? (
         <section className="mt-4 rounded-3xl bg-night-800 p-4 ring-1 ring-white/5">
-          <h2 className="text-lg font-bold">I tuoi conti</h2>
+          <h2 className="text-lg font-bold">Il tuo saldo</h2>
           {mine.length === 0 ? (
-            <p className="mt-2 text-white/70">Sei in pari: non devi niente a nessuno.</p>
+            <p className="mt-2 text-white/70">Sei in pari.</p>
           ) : (
             <ul className="mt-2 space-y-2">
               {mine.map((t, i) => (
@@ -198,14 +198,14 @@ function PlayerView({
                   {t.from === me.id ? (
                     <>
                       <span className="flex-1">
-                        Devi dare a <strong>{name(t.to)}</strong>
+                        Verso <strong>{name(t.to)}</strong>
                       </span>
                       <span className="tabular font-black text-loss">{formatCents(t.amountCents)}</span>
                     </>
                   ) : (
                     <>
                       <span className="flex-1">
-                        Ricevi da <strong>{name(t.from)}</strong>
+                        Da <strong>{name(t.from)}</strong>
                       </span>
                       <span className="tabular font-black text-gain">{formatCents(t.amountCents)}</span>
                     </>
@@ -216,7 +216,7 @@ function PlayerView({
           )}
           {debts.length > mine.length && (
             <details className="mt-3 text-sm text-white/60">
-              <summary className="cursor-pointer">Tutti i conti</summary>
+              <summary className="cursor-pointer">Tutti i saldi</summary>
               <ul className="mt-2 space-y-1">
                 {debts.map((t, i) => (
                   <li key={i} className="flex items-center gap-1.5">

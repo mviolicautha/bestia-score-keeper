@@ -9,6 +9,8 @@ export const metadata: Metadata = {
   title: "Bestia",
   description: "Segnapunti per la Bestia: piatto, vincite, bestie e conti di fine serata.",
   appleWebApp: { capable: true, title: "Bestia", statusBarStyle: "black-translucent" },
+  // Sito privato tra amici: niente motori di ricerca.
+  robots: { index: false, follow: false, nocache: true, googleBot: { index: false, follow: false } },
 };
 
 export const viewport: Viewport = {
