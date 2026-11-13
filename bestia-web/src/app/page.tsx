@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
-import { ChevronRight, Plus, Share, Trash2, UserRound, Users, X } from "lucide-react";
+import { ChevronRight, History, Plus, Share, Trash2, UserRound, Users, X } from "lucide-react";
 import { useAccount } from "@/lib/useAccount";
 import { getGroups, type GroupSummary } from "@/lib/groups";
 import { formatCents, replay, type GameState } from "@/engine";
@@ -148,6 +148,16 @@ export default function Home() {
         >
           <Users size={20} className="text-white/60" />
           <span className="flex-1 font-semibold">Le tue compagnie</span>
+          <ChevronRight size={18} className="text-white/30" />
+        </Link>
+      )}
+      {isSupabaseConfigured && (
+        <Link
+          href="/storico"
+          className="mt-2 flex items-center gap-3 rounded-2xl bg-night-800 p-3 pl-4 ring-1 ring-white/5 hover:bg-night-700"
+        >
+          <History size={20} className="text-white/60" />
+          <span className="flex-1 font-semibold">Le mie partite giocate</span>
           <ChevronRight size={18} className="text-white/30" />
         </Link>
       )}

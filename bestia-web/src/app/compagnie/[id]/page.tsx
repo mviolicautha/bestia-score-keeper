@@ -5,6 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, Crown, KeyRound, LogOut, Pencil, Plus, QrCode, RefreshCw, Trash2, Unlink, UserPlus } from "lucide-react";
 import { getGroups, type GroupDetail, type GroupGame, type GroupMember } from "@/lib/groups";
+import { getHistory, type PlayerResult } from "@/lib/history";
+import { formatCents } from "@/engine";
 import { useAccount } from "@/lib/useAccount";
 import { Button, Sheet } from "@/components/Sheet";
 import { InviteSheet } from "@/components/InviteSheet";
@@ -20,6 +22,7 @@ export default function GroupPage() {
   const registered = !!account?.username;
   const [group, setGroup] = useState<GroupDetail | null | undefined>(undefined);
   const [games, setGames] = useState<GroupGame[] | null>(null);
+  const [results, setResults] = useState<Record<string, PlayerResult[]>>({});
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const [confirm, setConfirm] = useState<ConfirmRequest | null>(null);
@@ -35,6 +38,8 @@ export default function GroupPage() {
       const [detail, list] = await Promise.all([groups.get(id), groups.listGames(id).catch(() => null)]);
       setGroup(detail);
       setGames(list);
+      const ended = (list ?? []).filter((x) => x.status === "ended").map((x) => x.id);
+      setResults((await getHistory()?.resultsOf(ended).catch(() => ({}))) ?? {});
       setError(null);
     } catch (e) {
       setError(messageOf(e));
@@ -126,6 +131,12 @@ export default function GroupPage() {
                       {new Date(game.updatedAt).toLocaleDateString("it-IT", { day: "numeric", month: "short" })}
                       {game.masterId === account?.userId && " · la conduci tu"}
                     </span>
+                    {results[game.id]?.[0] && results[game.id][0].balanceCents > 0 && (
+                      <span className="block truncate text-xs text-white/60">
+                        Ha vinto <strong className="text-white">{results[game.id][0].name}</strong>{" "}
+                        <span className="tabular font-bold text-gain">{formatCents(results[game.id][0].balanceCents, { signed: true })}</span>
+                      </span>
+                    )}
                   </span>
                   {game.status !== "ended" && <span className="size-2 shrink-0 rounded-full bg-gain" aria-label="in corso" />}
                   <ChevronRight size={18} className="shrink-0 text-white/30" />
