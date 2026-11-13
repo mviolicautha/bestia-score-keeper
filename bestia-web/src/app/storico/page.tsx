@@ -149,7 +149,8 @@ function ImportLocal({ onDone }: { onDone: () => Promise<void> }) {
       }
     }
     setGames(localGamesToImport());
-    setMessage(errors.length ? `Importate ${done}. ${errors[0]}` : `Importate ${done} partite.`);
+    const count = done === 1 ? "1 partita importata" : `${done} partite importate`;
+    setMessage(errors.length ? `${count}. ${errors[0]}` : `${count}.`);
     setBusy(false);
     await onDone();
   }
@@ -159,7 +160,7 @@ function ImportLocal({ onDone }: { onDone: () => Promise<void> }) {
       {games.length > 0 ? (
         <>
           <p className="text-white/80">
-            Su questo telefono {games.length === 1 ? "c'è 1 partita salvata" : `ci sono ${games.length} partite salvate`} solo in locale. Importale nel tuo
+            Su questo telefono {games.length === 1 ? "c'è 1 partita salvata" : `ci sono ${games.length} partite salvate`} solo in locale. {games.length === 1 ? "Importala" : "Importale"} nel tuo
             account: le ritroverai qui e da qualsiasi dispositivo (ne sarai il master).
           </p>
           <Button className="mt-3 flex w-full items-center justify-center gap-2 py-2.5 text-sm" disabled={busy} onClick={importAll}>
