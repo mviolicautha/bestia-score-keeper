@@ -21,6 +21,7 @@ import {
   Undo2,
   UserPlus,
   X,
+  Share2,
 } from "lucide-react";
 import {
   activePlayers,
@@ -41,6 +42,7 @@ import { newId as newPlayerId } from "@/lib/repository";
 import { HistoryList } from "@/components/HistoryList";
 import { Button, Sheet } from "@/components/Sheet";
 import { Results } from "@/components/Results";
+import { ReportSheet } from "@/components/ReportSheet";
 import { Avatar, ConfirmDialog, haptic, Toast, type ConfirmRequest, type ToastMessage } from "@/components/ui";
 import { CharacterEditor } from "@/components/CharacterEditor";
 import { CharacterOverrides, useCharacterFor } from "@/lib/avatar/overrides";
@@ -65,6 +67,7 @@ type SheetKind =
   | "tv"
   | "menu"
   | "invite"
+  | "report"
   | { player: PlayerId }
   | { character: PlayerId }
   | { approve: string }
@@ -158,7 +161,7 @@ export default function GamePage() {
   if (state.status === "ended") {
     return (
       <CharacterOverrides value={overrides}>
-        <Results state={state} history={game.history} title={game.meta?.title} onReopen={undo} backHref="/" />
+        <Results state={state} history={game.history} times={game.events.map((e) => e.at)} title={game.meta?.title} onReopen={undo} backHref="/" />
       </CharacterOverrides>
     );
   }
@@ -563,6 +566,9 @@ export default function GamePage() {
           }
         />
       )}
+      {sheet === "report" && (
+        <ReportSheet state={state} history={game.history} times={game.events.map((e) => e.at)} title={game.meta?.title} onClose={() => setSheet(null)} />
+      )}
       {sheet === "invite" && game.meta?.code && <InviteSheet code={game.meta.code} title={game.meta.title} onClose={() => setSheet(null)} />}
       {typeof sheet === "object" &&
         sheet !== null &&
@@ -725,6 +731,7 @@ function MenuSheet({
         )}
         {item(<Coins size={19} />, "Messa del mazziere", `Attuale ${formatCents(state.baseBetCents)}`, "bet")}
         {item(<Tv size={19} />, "Vista TV", "Classifica da proiettare", "tv")}
+        {item(<Share2 size={19} />, "Resoconto", "Da mandare nel gruppo WhatsApp", "report")}
         {item(<Flag size={19} />, "Termina partita", "Calcola i conti finali", "end", true)}
       </ul>
     </Sheet>

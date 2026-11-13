@@ -1,21 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, RotateCcw, Trophy } from "lucide-react";
+import { useState } from "react";
+import { ArrowRight, RotateCcw, Share2, Trophy } from "lucide-react";
 import { colorIndex, formatCents, simplifyDebts, type GameState, type HistoryEntry } from "@/engine";
 import { Button } from "./Sheet";
 import { Avatar } from "./ui";
+import { ReportSheet } from "./ReportSheet";
 
 /** Schermata di fine partita: classifica, chi paga chi, record della serata. */
 export function Results({
   state,
   history,
+  times,
   title,
   onReopen,
   backHref,
 }: {
   state: GameState;
   history: HistoryEntry[];
+  /** Orari degli eventi, per data e durata nel resoconto. */
+  times?: string[];
   title?: string;
   onReopen?: () => void;
   backHref?: string;
@@ -27,6 +32,7 @@ export function Results({
   const mostBestie = [...state.players].sort((a, b) => b.stats.bestie - a.stats.bestie)[0];
   const mostTricks = [...state.players].sort((a, b) => b.stats.tricks - a.stats.tricks)[0];
   const winner = ranking[0];
+  const [sharing, setSharing] = useState(false);
 
   return (
     <main className="mx-auto min-h-dvh max-w-lg px-4 pb-10 pt-[max(1.5rem,env(safe-area-inset-top))]">
@@ -96,6 +102,9 @@ export function Results({
       <p className="sr-only">{history.length} eventi registrati</p>
 
       <div className="mt-8 flex flex-col gap-2">
+        <Button variant="success" className="flex items-center justify-center gap-2" onClick={() => setSharing(true)}>
+          <Share2 size={18} /> Condividi il resoconto
+        </Button>
         {backHref && (
           <Link href={backHref} className="rounded-2xl bg-blue-600 py-3.5 text-center font-bold">
             Torna alle partite
@@ -107,6 +116,7 @@ export function Results({
           </Button>
         )}
       </div>
+      {sharing && <ReportSheet state={state} history={history} times={times} title={title} onClose={() => setSharing(false)} />}
     </main>
   );
 }
