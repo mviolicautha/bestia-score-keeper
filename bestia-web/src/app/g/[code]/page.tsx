@@ -55,7 +55,7 @@ function Join({ game }: { game: OnlineGame }) {
   const router = useRouter();
   const g = useGame(game.id);
   const info = useOnline(game.id);
-  const overrides = useRemoteCharacters(g.state, info?.seats);
+  const overrides = useRemoteCharacters(g.state, info?.seats, info?.game?.characters ?? game.characters);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [name, setName] = useState("");

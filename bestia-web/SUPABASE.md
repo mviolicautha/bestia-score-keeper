@@ -30,6 +30,8 @@ Poi, sempre nel SQL Editor, esegui anche gli altri script in [`supabase/migratio
 - `0002_giocatori.sql` (una riga): i personaggi che i giocatori creano sul proprio telefono compaiono subito su master e TV;
 - `0003_salvataggi_sicuri.sql`: con la rete ballerina o con la partita aperta su due dispositivi del master, una mano
   non viene mai registrata due volte (l'app funziona anche senza, ma senza questo controllo).
+- `0004_personaggi_condivisi.sql`: i personaggi creati sul telefono del master si vedono anche sui telefoni dei giocatori
+  e sulla TV (senza, li vede solo il master).
 
 ## 4. Copia URL e chiave pubblica
 Vai in **Project Settings → API Keys** (o **Data API**) e copia:

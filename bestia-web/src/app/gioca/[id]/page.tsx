@@ -8,7 +8,7 @@ import { formatCents, simplifyDebts, type GameState, type HistoryEntry, type Pla
 import { useGame } from "@/lib/useGame";
 import { getOnline } from "@/lib/online";
 import { useOnline, useRemoteCharacters } from "@/lib/useOnline";
-import { getCharacter } from "@/lib/avatar/store";
+import { characterKey, getCharacter, saveCharacter } from "@/lib/avatar/store";
 import { CharacterOverrides, useCharacterFor } from "@/lib/avatar/overrides";
 import { Character, CROPS } from "@/components/Character";
 import { CharacterEditor } from "@/components/CharacterEditor";
@@ -21,7 +21,7 @@ export default function PlayerPage() {
   const { id } = useParams<{ id: string }>();
   const game = useGame(id);
   const info = useOnline(id);
-  const overrides = useRemoteCharacters(game.state, info?.seats);
+  const overrides = useRemoteCharacters(game.state, info?.seats, info?.game?.characters);
   const [editing, setEditing] = useState(false);
 
   if (!getOnline()) return <Centered>Per seguire la partita dal telefono l&apos;app deve essere online.</Centered>;
@@ -53,7 +53,12 @@ export default function PlayerPage() {
         times={game.events.map((e) => e.at)}
         me={me}
         title={info.game?.title ?? "Partita"}
-        onEditCharacter={() => setEditing(true)}
+        onEditCharacter={() => {
+          // si parte dal personaggio che si vede al tavolo (magari fatto dal master), non da zero
+          const shown = overrides[characterKey(me.name)];
+          if (!getCharacter(me.name) && shown) saveCharacter(me.name, shown);
+          setEditing(true);
+        }}
         onLeaveSeat={async () => {
           try {
             await getOnline()?.releaseSeat(id, me.id);

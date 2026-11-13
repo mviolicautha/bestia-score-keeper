@@ -86,6 +86,11 @@ export function useCharacter(name: string): CharacterConfig | null {
   return saved ? saved.config : null;
 }
 
+/** Tutti i personaggi salvati su questo dispositivo, per chiave; si aggiorna da solo. */
+export function useCharacterStore(): Readonly<Record<string, { name: string; config: CharacterConfig }>> {
+  return useSyncExternalStore(subscribe, readStore, () => EMPTY);
+}
+
 /** Solo per i test. */
 export function resetCharacterCache() {
   cache = null;

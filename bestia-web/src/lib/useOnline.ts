@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { GameState, PlayerId } from "@/engine";
 import { isEmpty, normalize, type CharacterConfig } from "./avatar/catalog";
-import { characterKey } from "./avatar/store";
+import { characterKey, useCharacterStore } from "./avatar/store";
 import { getOnline, type JoinRequest, type OnlineGame, type SeatClaim } from "./online";
 
 export interface OnlineInfo {
@@ -64,18 +64,107 @@ export function useOnline(gameId: string | null): (OnlineInfo & { reload: () => 
 }
 
 /**
- * Personaggi dai telefoni dei giocatori, per nome: chi ha preso un posto e ha un personaggio
- * nel profilo lo mostra al tavolo (vince sul personaggio salvato localmente dal master).
+ * Personaggi che arrivano da fuori, per nome:
+ * - quelli condivisi dal master (creati sul suo dispositivo), così li vedono anche telefoni e TV;
+ * - sopra, quelli dei telefoni: chi ha preso un posto e ha un personaggio nel profilo lo mostra
+ *   al tavolo (vince sia su quello del master sia su quello salvato su questo dispositivo).
  */
-export function useRemoteCharacters(state: GameState | null, seats: SeatClaim[] | undefined): Record<string, CharacterConfig> {
+export function useRemoteCharacters(
+  state: GameState | null,
+  seats: SeatClaim[] | undefined,
+  shared?: Record<string, CharacterConfig>,
+): Record<string, CharacterConfig> {
   return useMemo(() => {
     const out: Record<string, CharacterConfig> = {};
-    if (!state || !seats) return out;
-    for (const s of seats) {
+    if (!state) return out;
+    for (const p of state.players) {
+      const key = characterKey(p.name);
+      const config = normalize(shared?.[key]);
+      if (!isEmpty(config)) out[key] = config;
+    }
+    for (const s of seats ?? []) {
       const player = state.players.find((p) => p.id === s.playerId);
       const config = normalize(s.character);
       if (player && !isEmpty(config)) out[characterKey(player.name)] = config;
     }
     return out;
-  }, [state, seats]);
+  }, [state, seats, shared]);
+}
+
+/** JSON con le chiavi in ordine: due mappe uguali danno la stessa stringa. */
+function sortedJson(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(sortedJson).join(",")}]`;
+  if (v && typeof v === "object")
+    return `{${Object.keys(v)
+      .sort()
+      .map((k) => `${JSON.stringify(k)}:${sortedJson((v as Record<string, unknown>)[k])}`)
+      .join(",")}}`;
+  return JSON.stringify(v) ?? "null";
+}
+
+/**
+ * Sul dispositivo del master: copia nella partita i personaggi dei giocatori creati qui, così
+ * compaiono anche sui telefoni e sulla TV. Aggiunge da solo quelli che la partita non ha ancora
+ * (anche creati prima della partita); per le modifiche si chiama la funzione restituita, dopo
+ * aver salvato. Così due dispositivi del master con personaggi diversi non si rincorrono.
+ * Senza rete riprova; non insiste se il database non ha la colonna (0004_personaggi_condivisi.sql).
+ */
+export function useShareCharacters(
+  state: GameState | null,
+  info: (OnlineInfo & { reload: () => Promise<void> }) | null,
+): (name: string) => void {
+  const store = useCharacterStore();
+  const gameId = info?.isMaster ? info.game?.id : undefined;
+  const shared = info?.game ? (info.game.characters ?? {}) : null;
+  const reload = info?.reload;
+  const pending = useRef(new Set<string>());
+  const unsupported = useRef(false);
+  const [retry, setRetry] = useState(0);
+
+  useEffect(() => {
+    const online = getOnline();
+    if (!online || !gameId || !shared || !state || unsupported.current) return;
+    const next = { ...shared };
+    let changed = false;
+    for (const p of state.players) {
+      const key = characterKey(p.name);
+      if (!pending.current.has(key) && key in shared) continue;
+      const local = normalize(store[key]?.config);
+      if (isEmpty(local)) {
+        if (key in next) {
+          delete next[key];
+          changed = true;
+        }
+      } else if (sortedJson(normalize(next[key])) !== sortedJson(local)) {
+        next[key] = local;
+        changed = true;
+      }
+    }
+    if (!changed) {
+      pending.current.clear();
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      online.shareCharacters(gameId, next).then(
+        (ok) => {
+          if (!ok) unsupported.current = true;
+          else void reload?.();
+        },
+        () => {
+          // rete assente: riprovo tra un po'
+          if (!cancelled) setTimeout(() => setRetry((n) => n + 1), 5000);
+        },
+      );
+    }, 150);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [gameId, shared, state, store, reload, retry]);
+
+  return useCallback((name: string) => {
+    pending.current.add(characterKey(name));
+    setRetry((n) => n + 1);
+  }, []);
 }

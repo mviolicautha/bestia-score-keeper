@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getRepository } from "@/lib/repository";
 import { setOnlineForTests } from "@/lib/online";
 import { resetCharacterCache } from "@/lib/avatar/store";
+import { itemsOf } from "@/lib/avatar/catalog";
 import { route } from "@/test/setup-next";
 import { fakeOnline } from "@/test/fakeOnline";
 import PlayerPage from "./page";
@@ -139,5 +140,23 @@ describe("vista del giocatore", () => {
     render(<PlayerPage />);
     expect(await screen.findByText(/Non hai ancora preso un posto/)).toBeTruthy();
     expect(screen.getByRole("link", { name: "Scegli chi sei" })).toHaveAttribute("href", "/g/KX7P2");
+  });
+
+});
+
+describe("personaggi sul telefono", () => {
+  it("si vedono i personaggi creati dal master e quelli dei telefoni degli altri", async () => {
+    const [h1, h2] = itemsOf("hair").map((i) => i.id);
+    const { online } = await seed();
+    online.state.seats.push({ playerId: "p3", profileId: "u-io", character: null }); // sono Dario
+    online.state.seats.push({ playerId: "p4", profileId: "u-elena", character: { hair: h2 } }); // Elena dal suo telefono
+    (await online.calls.getGame(route.id))!.characters = { bruno: { hair: h1 }, elena: { hair: h1 } }; // fatti dal master
+    render(<PlayerPage />);
+    const table = await screen.findByRole("group", { name: "Tavolo" });
+    const seat = (name: string) => within(table).getByText(name).parentElement!;
+    const hair = (name: string) => [...seat(name).querySelectorAll("img")].map((i) => i.getAttribute("src")).join(" ");
+    expect(hair("Bruno")).toContain(h1);
+    expect(hair("Elena")).toContain(h2); // quello del suo telefono vince su quello del master
+    expect(seat("Carla").querySelector("img")).toBeNull(); // nessun personaggio: l'iniziale
   });
 });

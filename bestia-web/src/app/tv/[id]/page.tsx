@@ -15,9 +15,9 @@ import { getOnline } from "@/lib/online";
 export default function TvPage() {
   const { id } = useParams<{ id: string }>();
   const game = useGame(id);
-  // personaggi creati dai giocatori sui loro telefoni
+  // personaggi creati dal master e dai giocatori sui loro telefoni
   const onlineInfo = useOnline(getOnline() ? id : null);
-  const overrides = useRemoteCharacters(game.state, onlineInfo?.seats);
+  const overrides = useRemoteCharacters(game.state, onlineInfo?.seats, onlineInfo?.game?.characters);
 
   if (game.loading) return <Full>Caricamento…</Full>;
   if (!game.state) return <Full>Partita non trovata su questo dispositivo.</Full>;
