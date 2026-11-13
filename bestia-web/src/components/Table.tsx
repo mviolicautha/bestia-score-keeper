@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { colorIndex, formatCents, type GameState, type PlayerId, type PlayerState } from "@/engine";
 import { useCharacterFor } from "@/lib/avatar/overrides";
 import { Character, CROPS } from "./Character";
@@ -63,6 +64,7 @@ export function Table({
   flashKey,
   seatLabel,
   selecting = false,
+  animatePot = false,
 }: {
   state: GameState;
   variant?: "master" | "tv";
@@ -77,7 +79,10 @@ export function Table({
   seatLabel?: (p: PlayerState) => string;
   /** Il master sta selezionando vincitori o bestie: i posti diventano interruttori. */
   selecting?: boolean;
+  /** Il piatto "conta" fino al nuovo valore (TV). */
+  animatePot?: boolean;
 }) {
+  const pot = useCountUp(state.potCents, animatePot);
   const players = state.players.filter((p) => p.active);
   const n = players.length;
   const tall = variant === "master"; // telefono in verticale: ovale allungato
@@ -110,7 +115,7 @@ export function Table({
         aria-label={`Piatto ${formatCents(state.potCents)}`}
       >
         <p className="text-[2.2cqw] font-semibold uppercase tracking-[0.3em] text-white/60">Piatto</p>
-        <p className="tabular text-[9cqw] font-black leading-none text-gold-400 drop-shadow">{formatCents(state.potCents)}</p>
+        <p className="tabular text-[9cqw] font-black leading-none text-gold-400 drop-shadow">{formatCents(pot)}</p>
         <p className="mt-[0.8cqw] text-[2.4cqw] text-white/70">
           Messa {formatCents(state.baseBetCents)} · Mano {state.handsPlayed + 1}
         </p>
@@ -248,4 +253,30 @@ function Seat({
       {content}
     </button>
   );
+}
+
+/** Il numero scorre verso il nuovo valore in ~0,9 s (se `on`; altrimenti cambia subito). */
+function useCountUp(value: number, on: boolean): number {
+  const [shown, setShown] = useState(value);
+  const from = useRef(value);
+  useEffect(() => {
+    const start = from.current;
+    from.current = value;
+    const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (!on || reduce || start === value || typeof requestAnimationFrame === "undefined") {
+      const id = setTimeout(() => setShown(value), 0);
+      return () => clearTimeout(id);
+    }
+    const t0 = performance.now();
+    let raf = 0;
+    const step = (t: number) => {
+      const k = Math.min(1, (t - t0) / 900);
+      const eased = 1 - Math.pow(1 - k, 3);
+      setShown(Math.round(start + (value - start) * eased));
+      if (k < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [value, on]);
+  return on ? shown : value;
 }
