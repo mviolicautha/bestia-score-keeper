@@ -50,6 +50,12 @@ export default function AccountPage() {
   );
 }
 
+/** Dove tornare dopo l'accesso (?next=/c/ABC234), solo percorsi interni all'app. */
+function nextPath(): string | null {
+  const next = new URLSearchParams(window.location.search).get("next");
+  return next && next.startsWith("/") && !next.startsWith("//") ? next : null;
+}
+
 /** Ospite anonimo: entra con un account o ne crea uno. */
 function SignIn({ accounts }: { accounts: AccountService }) {
   const [mode, setMode] = useState<"login" | "register">("login");
@@ -72,7 +78,7 @@ function SignIn({ accounts }: { accounts: AccountService }) {
     try {
       if (registering) await accounts.register(username, password);
       else await accounts.login(username, password);
-      restartApp("/account");
+      restartApp(nextPath() ?? "/account");
     } catch (err) {
       setError(messageOf(err));
       setBusy(false);

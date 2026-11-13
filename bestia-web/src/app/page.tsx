@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
-import { ChevronRight, Plus, Share, Trash2, UserRound, X } from "lucide-react";
+import { ChevronRight, Plus, Share, Trash2, UserRound, Users, X } from "lucide-react";
 import { useAccount } from "@/lib/useAccount";
 import { formatCents, replay, type GameState } from "@/engine";
 import { getRepository, type GameMeta } from "@/lib/repository";
@@ -114,6 +114,16 @@ export default function Home() {
       </Button>
 
       {isSupabaseConfigured && <JoinByCode />}
+      {isSupabaseConfigured && (
+        <Link
+          href="/compagnie"
+          className="mt-3 flex items-center gap-3 rounded-2xl bg-night-800 p-3 pl-4 ring-1 ring-white/5 hover:bg-night-700"
+        >
+          <Users size={20} className="text-white/60" />
+          <span className="flex-1 font-semibold">Le tue compagnie</span>
+          <ChevronRight size={18} className="text-white/30" />
+        </Link>
+      )}
 
       {games?.length === 0 && (
         <p className="mt-10 text-center text-white/45">
