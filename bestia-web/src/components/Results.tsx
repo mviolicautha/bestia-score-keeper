@@ -106,7 +106,7 @@ export function Results({
           <Share2 size={18} /> Condividi il resoconto
         </Button>
         {backHref && (
-          <Link href={backHref} className="rounded-2xl bg-blue-600 py-3.5 text-center font-bold">
+          <Link href={backHref} className="rounded-2xl bg-gold-400 py-3.5 text-center font-bold text-night-950">
             Torna alle partite
           </Link>
         )}

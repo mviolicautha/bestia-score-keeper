@@ -124,7 +124,7 @@ function JoinGroupByCode({ onCode }: { onCode: (code: string) => void }) {
         maxLength={9}
         autoCapitalize="characters"
         autoComplete="off"
-        className="min-w-0 flex-1 rounded-xl bg-night-900 px-3 py-2 font-mono uppercase tracking-[0.25em] outline-none ring-1 ring-white/10 focus:ring-blue-500"
+        className="min-w-0 flex-1 rounded-xl bg-night-900 px-3 py-2 font-mono uppercase tracking-[0.25em] outline-none ring-1 ring-white/10 focus:ring-gold-400"
       />
       <Button type="submit" variant="secondary" className="px-4 py-2 text-sm" disabled={clean.length !== 6}>
         Entra

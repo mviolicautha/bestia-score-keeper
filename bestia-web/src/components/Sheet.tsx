@@ -48,7 +48,7 @@ export function Button({
   variant?: "primary" | "secondary" | "danger" | "success" | "ghost";
 }) {
   const styles = {
-    primary: "bg-blue-600 hover:bg-blue-500 text-white",
+    primary: "bg-gold-400 hover:bg-gold-500 text-night-950",
     secondary: "bg-night-600 hover:bg-night-700 text-white",
     danger: "bg-red-600 hover:bg-red-500 text-white",
     success: "bg-felt-600 hover:bg-felt-500 text-white",

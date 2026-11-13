@@ -14,7 +14,7 @@ import { ConfirmDialog, Toast, type ConfirmRequest, type ToastMessage } from "@/
 import { Disclaimer } from "@/components/Disclaimer";
 
 const inputClass =
-  "mt-1 w-full rounded-xl bg-night-900 px-4 py-3 outline-none ring-1 ring-white/10 focus:ring-blue-500 aria-[invalid=true]:ring-red-400";
+  "mt-1 w-full rounded-xl bg-night-900 px-4 py-3 outline-none ring-1 ring-white/10 focus:ring-gold-400 aria-[invalid=true]:ring-red-400";
 
 const messageOf = (e: unknown) => (e instanceof AccountError || e instanceof Error ? e.message : "Qualcosa è andato storto.");
 
