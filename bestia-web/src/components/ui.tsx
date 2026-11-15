@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { AlertTriangle, CheckCircle2, Info } from "lucide-react";
 import { useCharacterFor } from "@/lib/avatar/overrides";
+import { useDisplayName } from "@/lib/aliases";
 import { Character, CROPS } from "./Character";
 import { Button, Sheet } from "./Sheet";
 
@@ -42,6 +43,7 @@ export function Avatar({
   size?: "sm" | "md" | "lg" | "xl";
 }) {
   const character = useCharacterFor(name);
+  const shown = useDisplayName()(name);
   const dim = {
     sm: "h-8 w-8 text-sm",
     md: "h-11 w-11 text-lg",
@@ -57,7 +59,7 @@ export function Avatar({
         {character ? (
           <Character config={character} crop={CROPS.head} className="h-full w-full" />
         ) : (
-          name.trim().charAt(0).toUpperCase() || "?"
+          shown.trim().charAt(0).toUpperCase() || "?"
         )}
       </span>
       {dealer && (

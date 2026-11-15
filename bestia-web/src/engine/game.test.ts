@@ -356,6 +356,72 @@ describe("splitCents", () => {
   });
 });
 
+describe("tavolo che si forma: togliere e spostare", () => {
+  it("toglie del tutto chi si è seduto per sbaglio, prima della prima mano", () => {
+    const { state } = replay([...setup(5), { type: "player_removed", playerId: "c" }]);
+    expect(state.players.map((p) => p.id)).toEqual(["a", "b", "d", "e"]);
+    expect(state.dealerId).toBe("a");
+    expect(moneyInvariant(state)).toBe(0);
+  });
+
+  it("se si toglie il mazziere riprende la messa e il mazzo passa al prossimo", () => {
+    const { state } = replay([...setup(5), { type: "player_removed", playerId: "a" }]);
+    expect(state.dealerId).toBe("b");
+    expect(bal(state)).toEqual({ b: -30, c: 0, d: 0, e: 0 });
+    expect(state.potCents).toBe(30);
+    expect(moneyInvariant(state)).toBe(0);
+  });
+
+  it("togliendo l'unico giocatore il prossimo che arriva fa le carte", () => {
+    const { state } = replay([
+      { type: "game_started", baseBetCents: 30 },
+      { type: "player_added", playerId: "a", name: "Anna" },
+      { type: "player_removed", playerId: "a" },
+      { type: "player_added", playerId: "b", name: "Bruno" },
+    ]);
+    expect(state.dealerId).toBe("b");
+    expect(state.potCents).toBe(30);
+    expect(state.players[0].joinOrder).toBe(0);
+  });
+
+  it("i colori non si ripetono dopo aver tolto qualcuno", () => {
+    const { state } = replay([...setup(5), { type: "player_removed", playerId: "b" }, { type: "player_added", playerId: "f", name: "Fabio" }]);
+    const orders = state.players.map((p) => p.joinOrder);
+    expect(new Set(orders).size).toBe(orders.length);
+  });
+
+  it("dopo la prima mano non si può più togliere nessuno", () => {
+    expectError([...setup(5), { type: "hand_passed" }, { type: "player_removed", playerId: "c" }], "TABLE_LOCKED");
+    expectError([...setup(5), { type: "misdeal" }, { type: "player_removed", playerId: "c" }], "TABLE_LOCKED");
+  });
+
+  it("cambia posto nel giro senza toccare i soldi", () => {
+    const { state } = replay([...setup(5), { type: "hand_passed" }, { type: "player_moved", playerId: "e", seatAfter: "a" }]);
+    expect(state.players.map((p) => p.id)).toEqual(["a", "e", "b", "c", "d"]);
+    expect(state.dealerId).toBe("b");
+    expect(moneyInvariant(state)).toBe(0);
+    expectError([...setup(5), { type: "player_moved", playerId: "e", seatAfter: "e" }], "INVALID_SEAT");
+  });
+});
+
+describe("carte date male", () => {
+  it("il mazziere va in bestia: paga il piatto, che raddoppia, e il mazzo passa", () => {
+    const { state } = replay([...setup(5), { type: "hand_passed" }, { type: "misdeal" }]);
+    // piatto 60 con mazziere b: b paga 60, piatto 120, poi c versa la messa
+    expect(state.dealerId).toBe("c");
+    expect(state.potCents).toBe(150);
+    expect(bal(state)).toEqual({ a: -30, b: -90, c: -30, d: 0, e: 0 });
+    expect(state.players.find((p) => p.id === "b")!.stats.bestie).toBe(1);
+    expect(state.misdeals).toBe(1);
+    expect(state.handsPlayed).toBe(0);
+    expect(moneyInvariant(state)).toBe(0);
+  });
+
+  it("serve il numero minimo di giocatori", () => {
+    expectError([...setup(4), { type: "misdeal" }], "NOT_ENOUGH_PLAYERS");
+  });
+});
+
 describe("colori dei giocatori", () => {
   it("ognuno tiene il suo colore anche se qualcuno si siede in mezzo", () => {
     const { state } = replay([...setup(5), { type: "player_added", playerId: "f", name: "Fabio", seatAfter: "a" }]);

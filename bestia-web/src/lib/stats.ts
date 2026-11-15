@@ -56,7 +56,7 @@ export function analyzeNight(state: GameState, history: HistoryEntry[]): NightAn
     const e = h.event;
     if (e.type === "game_started" || e.type === "bet_changed") bet = e.baseBetCents;
     if (e.type === "player_added") seated.add(e.playerId);
-    if (e.type === "player_left") seated.delete(e.playerId);
+    if (e.type === "player_left" || e.type === "player_removed") seated.delete(e.playerId);
     if (e.type === "hand_played") {
       for (const id of seated) {
         const n = nights.get(id);

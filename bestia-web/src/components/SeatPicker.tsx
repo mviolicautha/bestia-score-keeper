@@ -1,11 +1,28 @@
 "use client";
 
 import { activePlayers, type GameState, type PlayerId } from "@/engine";
+import { useDisplayName } from "@/lib/aliases";
 import { Avatar } from "./ui";
 
-/** Dopo chi si siede un nuovo arrivato, nel giro del tavolo in senso orario (l'ordine del mazzo). */
-export function SeatPicker({ state, value, onChange }: { state: GameState; value: PlayerId | undefined; onChange: (id: PlayerId) => void }) {
-  const active = activePlayers(state);
+/**
+ * Dopo chi si siede un nuovo arrivato, nel giro del tavolo in senso orario (l'ordine del mazzo).
+ * Con `exclude` serve a cambiare posto a chi è già seduto: lui non compare tra i vicini.
+ */
+export function SeatPicker({
+  state,
+  value,
+  onChange,
+  exclude,
+  who = "il nuovo arrivato",
+}: {
+  state: GameState;
+  value: PlayerId | undefined;
+  onChange: (id: PlayerId) => void;
+  exclude?: PlayerId;
+  who?: string;
+}) {
+  const label = useDisplayName();
+  const active = activePlayers(state).filter((p) => p.id !== exclude);
   if (active.length === 0) return null;
   const idx = active.findIndex((p) => p.id === value);
   return (
@@ -23,7 +40,7 @@ export function SeatPicker({ state, value, onChange }: { state: GameState; value
             }`}
           >
             <Avatar name={p.name} seat={p.joinOrder} size="sm" />
-            {p.name}
+            {label(p.name)}
           </button>
         ))}
       </div>
@@ -31,8 +48,8 @@ export function SeatPicker({ state, value, onChange }: { state: GameState; value
         Il mazzo gira in senso orario nell&apos;ordine dei posti
         {idx >= 0 && active.length > 1 && (
           <>
-            : il nuovo arrivato siede tra <strong className="text-white/70">{active[idx].name}</strong> e{" "}
-            <strong className="text-white/70">{active[(idx + 1) % active.length].name}</strong>
+            : {who} siede tra <strong className="text-white/70">{label(active[idx].name)}</strong> e{" "}
+            <strong className="text-white/70">{label(active[(idx + 1) % active.length].name)}</strong>
           </>
         )}
         .

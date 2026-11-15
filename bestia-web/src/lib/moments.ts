@@ -28,6 +28,13 @@ export function momentAt(history: HistoryEntry[], index: number, state: GameStat
   if (e.type === "hand_passed") {
     return { kind: "pass", key: index, dealer: entry.outcome.dealerAfter ? name(entry.outcome.dealerAfter) : null };
   }
+  if (e.type === "misdeal") {
+    // il mazziere ha sbagliato a dare le carte: va in bestia da solo
+    const dealer = entry.outcome.dealerBefore;
+    if (!dealer) return null;
+    const losers = [{ id: dealer, name: name(dealer), cents: entry.outcome.deltas[dealer] ?? 0 }];
+    return { kind: "bestia", key: index, losers, winners: [], potCents: entry.outcome.potBefore };
+  }
   if (e.type !== "hand_played") return null;
 
   // la messa del nuovo mazziere è nello stesso evento: va tolta per sapere quanto ha vinto o pagato

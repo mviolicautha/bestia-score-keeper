@@ -214,8 +214,57 @@ describe("schermata del master", () => {
     expect(balanceOf("Anna")).toBe("-0,60 €");
   });
 
+  it("prima della prima mano toglie del tutto chi si è seduto per sbaglio", async () => {
+    const { id, user } = await openGame([...NAMES, "Fabio"]);
+    await user.click(card("Fabio"));
+    expect(screen.queryByRole("button", { name: /Lascia il tavolo/ })).toBeNull();
+    await user.click(screen.getByRole("button", { name: /Togli dal tavolo/ }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: /^Fabio,/ })).toBeNull());
+    expect(screen.queryByText("Fuori dal tavolo")).toBeNull();
+    expect((await eventTypes(id)).at(-1)).toBe("player_removed");
+  });
+
+  it("cambia posto a un giocatore nel giro del tavolo", async () => {
+    const { id, user } = await openGame();
+    await user.click(card("Elena"));
+    await user.click(screen.getByRole("button", { name: /Cambia posto/ }));
+    await user.click(screen.getByRole("radio", { name: "Anna" }));
+    await user.click(screen.getByRole("button", { name: "Sposta qui" }));
+    await waitFor(async () => expect((await eventTypes(id)).at(-1)).toBe("player_moved"));
+    const order = screen.getAllByRole("button", { name: /, saldo / }).map((b) => b.getAttribute("aria-label")!.split(",")[0]);
+    expect(order).toEqual(["Anna", "Elena", "Bruno", "Carla", "Dario"]);
+  });
+
+  it("il master rinomina un giocatore solo per sé", async () => {
+    const { id, user } = await openGame();
+    await user.click(card("Bruno"));
+    await user.click(screen.getByRole("button", { name: /Rinomina/ }));
+    await user.type(screen.getByRole("textbox", { name: "Come lo chiami tu" }), "Luca{Enter}");
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("button", { name: /^Bruno,/ })).toBeNull());
+    expect(card("Luca")).toBeTruthy();
+    // nella partita (e quindi per telefoni e TV) resta Bruno
+    const events = await getRepository().loadEvents(id);
+    expect(events.some((e) => e.event.type === "player_added" && e.event.name === "Bruno")).toBe(true);
+    expect(events.at(-1)!.event.type).toBe("player_added");
+  });
+
+  it("carte date male: il mazziere va in bestia e il mazzo passa", async () => {
+    const { id, user } = await openGame();
+    await user.click(screen.getByRole("button", { name: "Altre opzioni" }));
+    await user.click(screen.getByRole("button", { name: /Carte date male/ }));
+    await user.click(screen.getByRole("button", { name: "Sì, va in bestia" }));
+    await waitFor(() => expect(pot()).toBe("0,90 €"));
+    expect(balanceOf("Anna")).toBe("-0,60 €");
+    expect(card("Bruno").getAttribute("aria-label")).toContain("mazziere");
+    expect((await eventTypes(id)).at(-1)).toBe("misdeal");
+  });
+
   it("un giocatore lascia il tavolo e può rientrare", async () => {
-    const { user } = await openGame([...NAMES, "Fabio"]);
+    const { user } = await openGame([...NAMES, "Fabio"], [
+      { type: "hand_passed" },
+      { type: "hand_played", winners: [{ playerIds: ["p2"], tricks: 3 }], losers: [] },
+    ]);
     await user.click(card("Fabio"));
     await user.click(screen.getByRole("button", { name: /Lascia il tavolo/ }));
     await waitFor(() => expect(screen.queryByRole("button", { name: /^Fabio,/ })).toBeNull());

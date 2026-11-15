@@ -36,6 +36,20 @@ export function describeEntry(entry: HistoryEntry, state: GameState): EventDescr
         title: `${name(event.playerId)} lascia il tavolo`,
         detail: outcome.dealerBefore !== outcome.dealerAfter ? `Nuovo mazziere: ${name(outcome.dealerAfter)}` : undefined,
       };
+    case "player_removed":
+      return {
+        kind: "info",
+        title: "Tolto dal tavolo un giocatore seduto per sbaglio",
+        detail: outcome.dealerBefore !== outcome.dealerAfter ? `Nuovo mazziere: ${name(outcome.dealerAfter)}` : undefined,
+      };
+    case "player_moved":
+      return { kind: "info", title: `${name(event.playerId)} cambia posto`, detail: `Ora siede dopo ${name(event.seatAfter)}` };
+    case "misdeal":
+      return {
+        kind: "loss",
+        title: `${name(outcome.dealerBefore)} sbaglia a dare le carte: va in bestia`,
+        detail: `Paga ${formatCents(outcome.potBefore)} · ${name(outcome.dealerAfter)} fa le carte · piatto ${formatCents(outcome.potAfter)}`,
+      };
     case "bet_changed":
       return { kind: "info", title: `Messa a ${formatCents(event.baseBetCents)}` };
     case "hand_passed":

@@ -50,6 +50,11 @@ function randomEvent(s: GameState, rnd: (n: number) => number, nextId: () => str
     if (r === 3) return { type: "bet_changed", baseBetCents: 30 * (1 + rnd(4)) };
   }
 
+  if (rnd(15) === 0 && active.length > 1) {
+    const [who, after] = shuffle(active.map((p) => p.id), rnd);
+    return { type: "player_moved", playerId: who, seatAfter: after };
+  }
+  if (rnd(12) === 0) return { type: "misdeal" };
   if (rnd(4) === 0) return { type: "hand_passed" };
 
   const ids = shuffle(active.map((p) => p.id), rnd);

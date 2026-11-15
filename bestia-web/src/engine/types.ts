@@ -38,9 +38,22 @@ export type GameEvent =
    */
   | { type: "player_added"; playerId: PlayerId; name: string; seatAfter?: PlayerId }
   | { type: "player_left"; playerId: PlayerId }
+  /**
+   * Toglie del tutto un giocatore seduto per sbaglio: solo prima della prima mano
+   * (giocata, passata o data male), quando non ha ancora vinto né pagato niente.
+   * Sparisce dal tavolo e dai conti, come se non si fosse mai seduto.
+   */
+  | { type: "player_removed"; playerId: PlayerId }
+  /** Il giocatore cambia posto: si siede subito dopo `seatAfter` nel giro del tavolo. */
+  | { type: "player_moved"; playerId: PlayerId; seatAfter: PlayerId }
   | { type: "bet_changed"; baseBetCents: number }
   /** La mano non si gioca: il mazzo passa e il nuovo mazziere versa la messa. */
   | { type: "hand_passed" }
+  /**
+   * Il mazziere sbaglia a dare le carte: va in bestia (paga quanto il piatto, che quindi
+   * raddoppia), la mano non si gioca e il mazzo passa al prossimo, che versa la messa.
+   */
+  | { type: "misdeal" }
   /**
    * Mano giocata. `losers` è una lista di gruppi: ogni gruppo (singolo o società)
    * va in bestia e paga l'intero piatto, diviso tra i suoi membri.
@@ -81,6 +94,8 @@ export interface GameState {
   players: PlayerState[];
   handsPlayed: number;
   handsPassed: number;
+  /** Mani in cui il mazziere ha sbagliato a dare le carte. */
+  misdeals: number;
   maxPotCents: number;
 }
 
@@ -110,6 +125,7 @@ export type EngineErrorCode =
   | "TABLE_FULL"
   | "INVALID_NAME"
   | "INVALID_SEAT"
+  | "TABLE_LOCKED"
   | "DUPLICATE_NAME"
   | "ALREADY_ACTIVE"
   | "UNKNOWN_PLAYER"
