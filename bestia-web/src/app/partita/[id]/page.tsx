@@ -6,7 +6,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Armchair,
   ArrowLeft,
+  ArrowLeftRight,
   ChevronLeft,
+  Pencil,
+  TriangleAlert,
+  UserMinus,
   Coins,
   Flag,
   History,
@@ -31,6 +35,8 @@ import {
   colorIndex,
   formatCents,
   handPayouts,
+  isSettingUp,
+  nextActiveAfter,
   type GameState,
   type PlayerId,
   type PlayerState,
@@ -60,6 +66,7 @@ import { isSupabaseConfigured } from "@/lib/supabase";
 import { displayHost, shortTvPath } from "@/lib/tvLink";
 import { Table } from "@/components/Table";
 import { defaultSeatAfter, SeatPicker } from "@/components/SeatPicker";
+import { DisplayNames, useAliases, useDisplayName, type Aliases } from "@/lib/aliases";
 
 type HandPhase =
   | { kind: "idle" }
@@ -136,6 +143,8 @@ export default function GamePage() {
   // bustine: il master veste il suo personaggio con il suo album, gli altri con i pezzi liberi
   const collection = useCollection();
   const { account, accounts } = useAccount();
+  // nomi di comodo che il master dà ai giocatori: li vede solo lui, su questo telefono
+  const aliases = useAliases();
 
   const notify = useCallback((text: string, kind: ToastMessage["kind"] = "info") => {
     setToast({ text, kind, id: Date.now() });
@@ -157,6 +166,8 @@ export default function GamePage() {
   }
 
   const state = game.state;
+  // lo stato coi nomi di comodo, per i testi (cronologia, avvisi) che il master legge
+  const shownState: GameState = { ...state, players: state.players.map((p) => ({ ...p, name: aliases.label(p.name) })) };
 
   async function run(event: Parameters<typeof game.dispatch>[0]) {
     const res = await game.dispatch(event);
@@ -168,7 +179,7 @@ export default function GamePage() {
   async function undo() {
     const last = game.history.at(-1);
     if (!last || !game.state) return;
-    const label = describeEntry(last, game.state).title;
+    const label = describeEntry(last, shownState).title;
     const res = await game.undo();
     if (res === true) notify(`Annullato: ${label}`);
     else if (typeof res === "string") notify(res, "error");
@@ -185,8 +196,50 @@ export default function GamePage() {
   const players = activePlayers(state);
   const inactive = state.players.filter((p) => !p.active);
   const seatOf = (pid: PlayerId) => colorIndex(state, pid);
-  const name = (pid: PlayerId) => state.players.find((p) => p.id === pid)?.name ?? "?";
+  const label = (p: PlayerState) => aliases.label(p.name);
+  const name = (pid: PlayerId) => {
+    const p = state.players.find((x) => x.id === pid);
+    return p ? label(p) : "?";
+  };
   const groupNames = (g: PlayerId[]) => g.map(name).join(" & ");
+  const settingUp = isSettingUp(state);
+  const canMisdeal = canPlay(state) && state.potCents > 0 && !!state.dealerId;
+
+  /** Il mazziere ha sbagliato a dare le carte: va in bestia e il mazzo passa. */
+  function askMisdeal() {
+    if (!state.dealerId) return;
+    const dealer = name(state.dealerId);
+    const next = nextActiveAfter(state, state.dealerId);
+    setSheet(null);
+    setConfirm({
+      title: "Carte date male?",
+      message: (
+        <>
+          <strong>{dealer}</strong> va in bestia: paga {formatCents(state.potCents)}, il piatto sale a{" "}
+          <strong>{formatCents(state.potCents * 2 + state.baseBetCents)}</strong> e il mazzo passa a {next ? name(next) : "?"}, che versa la
+          messa.
+        </>
+      ),
+      confirmLabel: "Sì, va in bestia",
+      danger: true,
+      onConfirm: async () => {
+        haptic(20);
+        if (await run({ type: "misdeal" })) notify(`${dealer} in bestia per le carte date male`, "success");
+      },
+    });
+  }
+
+  /** Toglie del tutto chi si è seduto per sbaglio (solo prima della prima mano). */
+  async function removePlayer(pid: PlayerId) {
+    const who = name(pid);
+    const phone = onlineInfo?.seats.some((s) => s.playerId === pid);
+    if (!(await run({ type: "player_removed", playerId: pid }))) return false;
+    setSheet(null);
+    notify(`${who} tolto dal tavolo`);
+    // il suo telefono non segue più quel posto
+    if (phone) void getOnline()?.releaseSeat(id, pid).then(() => onlineInfo?.reload(), () => {});
+    return true;
+  }
 
   // Anteprima di quanto vince/paga ciascuno con la selezione attuale.
   let preview: Record<PlayerId, number> = {};
@@ -219,7 +272,7 @@ export default function GamePage() {
     if (isWinner && !alreadyLoser) {
       setConfirm({
         title: "Vincitore anche in bestia?",
-        message: `${p.name} ha vinto una parte del piatto in questa mano. Confermi che è andato anche in bestia?`,
+        message: `${label(p)} ha vinto una parte del piatto in questa mano. Confermi che è andato anche in bestia?`,
         confirmLabel: "Sì, va in bestia",
         danger: true,
         onConfirm: toggle,
@@ -245,12 +298,13 @@ export default function GamePage() {
   }
 
   const cardLabel = (p: PlayerState) =>
-    `${p.name}${p.id === state.dealerId ? ", mazziere" : ""}, saldo ${formatCents(p.balanceCents, { signed: true })}${badgeFor(p.id) ? ", selezionato" : ""}`;
+    `${label(p)}${p.id === state.dealerId ? ", mazziere" : ""}, saldo ${formatCents(p.balanceCents, { signed: true })}${badgeFor(p.id) ? ", selezionato" : ""}`;
 
   const lastGroup = phase.kind !== "idle" && phase.groups.length > 0 ? phase.groups[phase.groups.length - 1] : null;
 
   return (
     <CharacterOverrides value={overrides}>
+    <DisplayNames label={aliases.label}>
     <div className="mx-auto flex min-h-dvh max-w-2xl flex-col">
       {/* Barra in alto */}
       <header className="flex items-center gap-1 px-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
@@ -366,7 +420,7 @@ export default function GamePage() {
                   >
                     <Avatar name={p.name} seat={seatOf(p.id)} dealer={isDealer} />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate font-bold">{p.name}</span>
+                      <span className="block truncate font-bold">{label(p)}</span>
                       <span className={`tabular block text-base font-black ${amountColor(p.balanceCents)}`}>
                         {formatCents(p.balanceCents, { signed: true })}
                       </span>
@@ -400,10 +454,19 @@ export default function GamePage() {
               {inactive.map((p) => (
                 <li key={p.id} className="flex items-center gap-2 rounded-full bg-night-800/60 py-1 pl-1 pr-3 text-sm text-white/55">
                   <Avatar name={p.name} seat={seatOf(p.id)} size="sm" />
-                  {p.name}
+                  {label(p)}
                   <span className={`tabular font-bold ${amountColor(p.balanceCents)}`}>
                     {formatCents(p.balanceCents, { signed: true })}
                   </span>
+                  {settingUp && (
+                    <button
+                      onClick={() => void removePlayer(p.id)}
+                      aria-label={`Togli ${label(p)} dalla partita`}
+                      className="-mr-1.5 rounded-full p-1 text-white/50 hover:bg-white/10"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
@@ -565,11 +628,19 @@ export default function GamePage() {
       {sheet === "bet" && <BetSheet onClose={() => setSheet(null)} state={state} run={run} />}
       {sheet === "tv" && <TvSheet onClose={() => setSheet(null)} gameId={id} code={game.meta?.code} />}
       <EndSheet open={sheet === "end"} onClose={() => setSheet(null)} state={state} run={run} />
-      <MenuSheet open={sheet === "menu"} onClose={() => setSheet(null)} onPick={setSheet} state={state} />
+      <MenuSheet
+        open={sheet === "menu"}
+        onClose={() => setSheet(null)}
+        onPick={setSheet}
+        state={state}
+        dealerName={state.dealerId ? name(state.dealerId) : null}
+        canMisdeal={canMisdeal}
+        onMisdeal={askMisdeal}
+      />
       <Sheet open={sheet === "history"} onClose={() => setSheet(null)} title="Cronologia">
-        <HistoryList state={state} history={game.history} times={game.events.map((e) => e.at)} />
+        <HistoryList state={shownState} history={game.history} times={game.events.map((e) => e.at)} />
       </Sheet>
-      {typeof sheet === "object" && sheet !== null && "player" in sheet && (
+      {typeof sheet === "object" && sheet !== null && "player" in sheet && state.players.some((p) => p.id === sheet.player) && (
         <PlayerSheet
           player={state.players.find((p) => p.id === sheet.player)!}
           seat={seatOf(sheet.player)}
@@ -577,6 +648,9 @@ export default function GamePage() {
           onClose={() => setSheet(null)}
           onEditCharacter={() => setSheet({ character: sheet.player })}
           run={run}
+          aliases={aliases}
+          onRemove={settingUp ? () => removePlayer(sheet.player) : undefined}
+          onMisdeal={sheet.player === state.dealerId && canMisdeal ? askMisdeal : undefined}
           phoneLinked={!!onlineInfo?.seats.some((s) => s.playerId === sheet.player)}
           onUnlink={() =>
             void getOnline()
@@ -648,6 +722,7 @@ export default function GamePage() {
           );
         })()}
     </div>
+    </DisplayNames>
     </CharacterOverrides>
   );
 }
@@ -757,16 +832,29 @@ function MenuSheet({
   onClose,
   onPick,
   state,
+  dealerName,
+  canMisdeal,
+  onMisdeal,
 }: {
   open: boolean;
   onClose: () => void;
   onPick: (s: SheetKind) => void;
   state: GameState;
+  dealerName: string | null;
+  canMisdeal: boolean;
+  onMisdeal: () => void;
 }) {
-  const item = (icon: React.ReactNode, label: string, detail: string, target: SheetKind, danger = false, disabled = false) => (
+  const item = (
+    icon: React.ReactNode,
+    label: string,
+    detail: string,
+    target: SheetKind | (() => void),
+    danger = false,
+    disabled = false,
+  ) => (
     <li>
       <button
-        onClick={() => onPick(target)}
+        onClick={() => (typeof target === "function" ? target() : onPick(target))}
         disabled={disabled}
         className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left hover:bg-white/5 disabled:opacity-40 disabled:hover:bg-transparent"
       >
@@ -793,6 +881,14 @@ function MenuSheet({
           false,
           !canChangeTable(state),
         )}
+        {item(
+          <TriangleAlert size={19} />,
+          "Carte date male",
+          canMisdeal && dealerName ? `${dealerName} va in bestia e il mazzo passa` : "Il mazziere va in bestia e il mazzo passa",
+          onMisdeal,
+          true,
+          !canMisdeal,
+        )}
         {item(<Coins size={19} />, "Messa del mazziere", `Attuale ${formatCents(state.baseBetCents)}`, "bet")}
         {item(<Tv size={19} />, "Vista TV", "Classifica da proiettare", "tv")}
         {item(<Share2 size={19} />, "Resoconto", "Da mandare nel gruppo WhatsApp", "report")}
@@ -818,6 +914,7 @@ function AddPlayerSheet({
   group: GameGroup | null;
   onError: (text: string) => void;
 }) {
+  const label = useDisplayName();
   const [value, setValue] = useState("");
   const [added, setAdded] = useState<string[]>([]);
   const active = activePlayers(state);
@@ -842,12 +939,15 @@ function AddPlayerSheet({
 
   // membri della compagnia non ancora in questa partita (né legati né con lo stesso nome)
   const taken = new Set(state.players.map((p) => p.name.trim().toLocaleLowerCase("it")));
-  const linked = new Set(Object.values(group?.links ?? {}));
+  // i legami verso giocatori tolti dal tavolo (seduti per sbaglio) non contano: quel membro si può risedere
+  const links = Object.entries(group?.links ?? {});
+  const linked = new Set(links.filter(([pid]) => state.players.some((p) => p.id === pid)).map(([, m]) => m));
   const available = (group?.group.members ?? []).filter((m) => !linked.has(m.id) && !taken.has(m.name.trim().toLocaleLowerCase("it")));
 
   /** Siede un membro della compagnia e lo lega al giocatore (il suo telefono prende il posto). */
   async function joinMember(memberId: string, memberName: string) {
-    const playerId = newPlayerId();
+    // se era stato seduto e poi tolto, riprende lo stesso id: il legame col membro c'è già
+    const playerId = links.find(([pid, m]) => m === memberId && !state.players.some((p) => p.id === pid))?.[0] ?? newPlayerId();
     const ok = await join(playerId, memberName);
     if (!ok) return false;
     try {
@@ -918,7 +1018,7 @@ function AddPlayerSheet({
         {active.length === 0
           ? "Inserisci i giocatori in ordine di posto, in senso orario: il primo fa le carte. "
           : "Premi Invio per aggiungere il prossimo: si siederà dopo quello appena aggiunto. "}
-        Poi tocca un giocatore per creargli il personaggio.
+        Poi tocca un giocatore per creargli il personaggio, spostarlo di posto o toglierlo se l&apos;hai messo per sbaglio.
       </p>
       {added.length > 0 && <p className="mt-2 text-sm text-emerald-300">Aggiunti: {added.join(", ")}</p>}
       {group && !full && (
@@ -945,7 +1045,7 @@ function AddPlayerSheet({
           <div className="flex flex-wrap gap-2">
             {inactive.map((p) => (
               <Button key={p.id} variant="secondary" className="py-2" onClick={() => join(p.id, p.name)}>
-                {p.name}
+                {label(p.name)}
               </Button>
             ))}
           </div>
@@ -1068,6 +1168,9 @@ function PlayerSheet({
   run,
   phoneLinked = false,
   onUnlink,
+  aliases,
+  onRemove,
+  onMisdeal,
 }: {
   player: PlayerState;
   seat: number;
@@ -1078,11 +1181,30 @@ function PlayerSheet({
   /** Il giocatore segue la partita dal suo telefono (ha preso il posto con "Sono io"). */
   phoneLinked?: boolean;
   onUnlink?: () => void;
+  aliases: Aliases;
+  /** Solo prima della prima mano: lo toglie del tutto (seduto per sbaglio). */
+  onRemove?: () => Promise<boolean>;
+  /** Solo per il mazziere: ha sbagliato a dare le carte. */
+  onMisdeal?: () => void;
 }) {
   const canLeave = canChangeTable(state);
   const hasCharacter = useCharacterFor(player.name) !== null;
+  const alias = aliases.aliasOf(player.name);
+  const [renaming, setRenaming] = useState(false);
+  const [draft, setDraft] = useState(alias ?? "");
+  const others = activePlayers(state).filter((p) => p.id !== player.id);
+  const seatIdx = activePlayers(state).findIndex((p) => p.id === player.id);
+  const before = seatIdx > 0 ? activePlayers(state)[seatIdx - 1].id : others.at(-1)?.id;
+  const [moving, setMoving] = useState(false);
+  const [after, setAfter] = useState<PlayerId | undefined>(before);
+
   return (
-    <Sheet open onClose={onClose} title={player.name}>
+    <Sheet open onClose={onClose} title={aliases.label(player.name)}>
+      {alias && !renaming && (
+        <p className="-mt-2 mb-3 text-xs text-white/45">
+          Per tutti gli altri è <strong className="text-white/70">{player.name}</strong>
+        </p>
+      )}
       <div className="flex items-center gap-4">
         <Avatar name={player.name} seat={seat} dealer={player.id === state.dealerId} size="xl" />
         <div className="min-w-0 flex-1">
@@ -1095,8 +1217,66 @@ function PlayerSheet({
           >
             <Shirt size={16} /> {hasCharacter ? "Modifica personaggio" : "Crea personaggio"}
           </button>
+          <button
+            onClick={() => {
+              setDraft(alias ?? "");
+              setRenaming(!renaming);
+            }}
+            aria-expanded={renaming}
+            className="ml-1.5 mt-1 inline-flex items-center gap-1.5 rounded-full bg-night-700 px-3 py-1.5 text-sm font-semibold text-white/85 hover:bg-night-600"
+          >
+            <Pencil size={15} /> Rinomina
+          </button>
         </div>
       </div>
+      {renaming && (
+        <form
+          className="mt-4 rounded-xl bg-night-900 p-3 ring-1 ring-white/10"
+          onSubmit={(e) => {
+            e.preventDefault();
+            aliases.setAlias(player.name, draft);
+            setRenaming(false);
+          }}
+        >
+          <label className="block text-sm text-white/70" htmlFor="alias">
+            Come lo chiami tu
+          </label>
+          <div className="mt-2 flex gap-2">
+            <input
+              id="alias"
+              autoFocus
+              value={draft}
+              maxLength={20}
+              autoCapitalize="words"
+              enterKeyHint="done"
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder={player.name}
+              className="min-w-0 flex-1 rounded-xl bg-night-800 px-3 py-2.5 outline-none ring-1 ring-white/10 focus:ring-gold-400"
+            />
+            <Button type="submit" className="py-2.5">
+              Salva
+            </Button>
+          </div>
+          <p className="mt-2 text-xs text-white/45">
+            Lo vedi solo tu, su questo telefono: per gli altri, sulla TV e nei conti resta <strong>{player.name}</strong>.
+            {alias && (
+              <>
+                {" "}
+                <button
+                  type="button"
+                  className="font-semibold text-white/70 underline underline-offset-2"
+                  onClick={() => {
+                    aliases.setAlias(player.name, "");
+                    setRenaming(false);
+                  }}
+                >
+                  Torna a {player.name}
+                </button>
+              </>
+            )}
+          </p>
+        </form>
+      )}
       {phoneLinked && (
         <p className="mt-3 flex items-center gap-2 rounded-xl bg-sky-500/10 px-3 py-2 text-sm text-sky-200">
           <Smartphone size={16} className="shrink-0" />
@@ -1113,21 +1293,67 @@ function PlayerSheet({
         <Stat label="Prese" value={player.stats.tricks} />
         <Stat label="Bestie" value={player.stats.bestie} />
       </dl>
-      <Button
-        variant="danger"
-        className="mt-5 flex w-full items-center justify-center gap-2"
-        disabled={!canLeave}
-        onClick={async () => {
-          if (await run({ type: "player_left", playerId: player.id })) onClose();
-        }}
-      >
-        <LogOut size={18} /> Lascia il tavolo
-      </Button>
-      <p className="mt-2 text-xs text-white/40">
-        {canLeave
-          ? "Il saldo resta nei conti finali. Se è il mazziere, riprende la messa e il mazzo passa al prossimo."
-          : "Si può lasciare il tavolo solo a piatto pulito."}
-      </p>
+      {onMisdeal && (
+        <Button variant="secondary" className="mt-4 flex w-full items-center justify-center gap-2" onClick={onMisdeal}>
+          <TriangleAlert size={18} className="text-amber-300" /> Ha sbagliato a dare le carte
+        </Button>
+      )}
+      {others.length > 0 && (
+        <div className="mt-4">
+          {moving ? (
+            <div className="rounded-xl bg-night-900 p-3 ring-1 ring-white/10">
+              <SeatPicker state={state} value={after} onChange={setAfter} exclude={player.id} who={aliases.label(player.name)} />
+              <div className="mt-3 flex gap-2">
+                <Button variant="ghost" className="flex-1 py-2.5" onClick={() => setMoving(false)}>
+                  Annulla
+                </Button>
+                <Button
+                  className="flex-1 py-2.5"
+                  disabled={!after || after === before}
+                  onClick={async () => {
+                    if (after && (await run({ type: "player_moved", playerId: player.id, seatAfter: after }))) onClose();
+                  }}
+                >
+                  Sposta qui
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button variant="secondary" className="flex w-full items-center justify-center gap-2" onClick={() => setMoving(true)}>
+              <ArrowLeftRight size={18} /> Cambia posto
+            </Button>
+          )}
+        </div>
+      )}
+      {onRemove ? (
+        <>
+          <Button variant="danger" className="mt-3 flex w-full items-center justify-center gap-2" onClick={() => void onRemove()}>
+            <UserMinus size={18} /> Togli dal tavolo
+          </Button>
+          <p className="mt-2 text-xs text-white/40">
+            Seduto per sbaglio? Prima della prima mano lo togli del tutto, come se non si fosse mai seduto.
+            {player.id === state.dealerId && " Il mazzo passa al prossimo, che versa la messa."}
+          </p>
+        </>
+      ) : (
+        <>
+          <Button
+            variant="danger"
+            className="mt-3 flex w-full items-center justify-center gap-2"
+            disabled={!canLeave}
+            onClick={async () => {
+              if (await run({ type: "player_left", playerId: player.id })) onClose();
+            }}
+          >
+            <LogOut size={18} /> Lascia il tavolo
+          </Button>
+          <p className="mt-2 text-xs text-white/40">
+            {canLeave
+              ? "Il saldo resta nei conti finali. Se è il mazziere, riprende la messa e il mazzo passa al prossimo."
+              : "Si può lasciare il tavolo solo a piatto pulito."}
+          </p>
+        </>
+      )}
     </Sheet>
   );
 }

@@ -21,6 +21,7 @@ export function initialState(): GameState {
     players: [],
     handsPlayed: 0,
     handsPassed: 0,
+    misdeals: 0,
     maxPotCents: 0,
   };
 }
@@ -38,6 +39,10 @@ export const canPlay = (s: GameState) =>
   s.status === "in_progress" && activePlayers(s).length >= s.rules.minPlayers;
 
 export const canEnd = (s: GameState) => s.status === "in_progress" && isPotClean(s);
+
+/** Il tavolo si sta ancora formando: nessuna mano giocata, passata o data male. Si può togliere chi si è seduto per sbaglio. */
+export const isSettingUp = (s: GameState) =>
+  s.status === "in_progress" && s.handsPlayed === 0 && s.handsPassed === 0 && (s.misdeals ?? 0) === 0;
 
 export function findPlayer(s: GameState, id: PlayerId): PlayerState | undefined {
   return s.players.find((p) => p.id === id);
@@ -241,7 +246,8 @@ export function applyEvent(prev: GameState, event: GameEvent): { state: GameStat
         player = {
           id: event.playerId,
           name,
-          joinOrder: s.players.length, // nessuno esce dall'elenco: la lunghezza conta gli arrivati
+          // ordine di arrivo: dopo l'ultimo arrivato (chi viene tolto lascia un buco, non un doppione)
+          joinOrder: s.players.reduce((m, p) => Math.max(m, p.joinOrder + 1), 0),
           balanceCents: 0,
           active: true,
           stats: { handsWon: 0, tricks: 0, bestie: 0 },
@@ -279,6 +285,50 @@ export function applyEvent(prev: GameState, event: GameEvent): { state: GameStat
       break;
     }
 
+    case "player_removed": {
+      requireInProgress(s);
+      if (!isSettingUp(s)) {
+        throw new EngineError(
+          "TABLE_LOCKED",
+          "Si può togliere un giocatore solo prima della prima mano: ora può solo lasciare il tavolo.",
+        );
+      }
+      const p = findPlayer(s, event.playerId);
+      if (!p) throw new EngineError("UNKNOWN_PLAYER", `Giocatore sconosciuto: ${event.playerId}`);
+      const wasDealer = s.dealerId === p.id;
+      if (wasDealer && s.potCents >= s.baseBetCents) {
+        // il mazziere riprende la sua messa
+        move(d, p.id, s.baseBetCents);
+        s.potCents -= s.baseBetCents;
+      }
+      if (p.balanceCents !== 0) {
+        throw new EngineError("TABLE_LOCKED", `${p.name} ha già dei soldi in gioco: può solo lasciare il tavolo.`);
+      }
+      p.active = false;
+      const next = wasDealer ? nextActiveAfter(s, p.id) : s.dealerId;
+      s.players.splice(s.players.indexOf(p), 1);
+      delete d.deltas[p.id];
+      if (wasDealer) {
+        s.dealerId = next;
+        if (next) {
+          move(d, next, -s.baseBetCents);
+          s.potCents += s.baseBetCents;
+        }
+      }
+      break;
+    }
+
+    case "player_moved": {
+      requireInProgress(s);
+      const p = requireActive(s, event.playerId);
+      if (event.seatAfter === p.id) throw new EngineError("INVALID_SEAT", "Non ci si può sedere accanto a sé stessi.");
+      const neighbour = findPlayer(s, event.seatAfter);
+      if (!neighbour?.active) throw new EngineError("INVALID_SEAT", "Ci si può sedere solo accanto a chi è al tavolo.");
+      s.players.splice(s.players.indexOf(p), 1);
+      s.players.splice(s.players.indexOf(neighbour) + 1, 0, p);
+      break;
+    }
+
     case "bet_changed": {
       requireInProgress(s);
       requireCleanPot(s, "cambiare la messa");
@@ -299,6 +349,22 @@ export function applyEvent(prev: GameState, event: GameEvent): { state: GameStat
       }
       rotateDealerAndAnte(d);
       s.handsPassed += 1;
+      break;
+    }
+
+    case "misdeal": {
+      requireInProgress(s);
+      if (!canPlay(s)) {
+        throw new EngineError("NOT_ENOUGH_PLAYERS", `Servono almeno ${s.rules.minPlayers} giocatori.`);
+      }
+      if (s.potCents <= 0 || !s.dealerId) throw new EngineError("EMPTY_POT", "Il piatto è vuoto.");
+      // il mazziere va in bestia: paga quanto c'è nel piatto, che resta lì e raddoppia
+      const dealer = findPlayer(s, s.dealerId)!;
+      move(d, dealer.id, -s.potCents);
+      s.potCents *= 2;
+      dealer.stats.bestie += 1;
+      s.misdeals = (s.misdeals ?? 0) + 1;
+      rotateDealerAndAnte(d);
       break;
     }
 

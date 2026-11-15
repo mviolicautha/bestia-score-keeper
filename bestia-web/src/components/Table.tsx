@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { colorIndex, formatCents, type GameState, type PlayerId, type PlayerState } from "@/engine";
 import { useCharacterFor } from "@/lib/avatar/overrides";
+import { useDisplayName } from "@/lib/aliases";
 import { Character, CROPS } from "./Character";
 import { SEAT_COLORS } from "./ui";
 
@@ -181,6 +182,7 @@ function Seat({
   pressed?: boolean;
 }) {
   const character = useCharacterFor(player.name);
+  const shown = useDisplayName()(player.name);
   const amount = player.balanceCents;
   const content = (
     <>
@@ -193,12 +195,12 @@ function Seat({
           <Character config={character} crop={CROPS.bust} className="h-full w-full" />
         ) : (
           <span className="grid h-full w-full place-items-center text-[6cqw] font-black text-white" aria-hidden>
-            {player.name.trim().charAt(0).toUpperCase() || "?"}
+            {shown.trim().charAt(0).toUpperCase() || "?"}
           </span>
         )}
       </span>
       <span className="mt-[0.6cqw] block truncate text-center text-[max(10px,2.7cqw)] font-bold leading-tight text-white drop-shadow">
-        {player.name}
+        {shown}
       </span>
       <span
         className={`tabular block text-center text-[max(10px,2.6cqw)] font-black leading-tight ${
