@@ -4,10 +4,10 @@
  */
 import type { AnchorHTMLAttributes, ImgHTMLAttributes } from "react";
 
-export const route = { id: "", pushed: [] as string[] };
+export const route = { id: "", code: "", pushed: [] as string[] };
 
 export const navigationMock = {
-  useParams: () => ({ id: route.id }),
+  useParams: () => ({ id: route.id, code: route.code }),
   useRouter: () => ({ push: (href: string) => route.pushed.push(href), replace: (href: string) => route.pushed.push(href) }),
 };
 

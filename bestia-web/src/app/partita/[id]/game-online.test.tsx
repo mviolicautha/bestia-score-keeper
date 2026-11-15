@@ -81,6 +81,23 @@ describe("master con giocatori dal telefono", () => {
     await waitFor(() => expect(screen.queryByRole("list", { name: "Richieste di sedersi" })).toBeNull());
   });
 
+  it("'Vista TV' propone l'indirizzo corto con il codice della partita, ben grande", async () => {
+    const id = await getRepository().createGame("Venerdì", 30);
+    // le partite online hanno il codice di 5 caratteri nei metadati
+    const stored = JSON.parse(window.localStorage.getItem("bestia:games")!) as { id: string; code?: string }[];
+    window.localStorage.setItem("bestia:games", JSON.stringify(stored.map((g) => (g.id === id ? { ...g, code: "KX7P2" } : g))));
+    route.id = id;
+    setOnlineForTests(fakeOnline({ id, code: "KX7P2", title: "Venerdì", masterId: "u-io" }).service);
+    const user = userEvent.setup();
+    render(<GamePage />);
+    await user.click(await screen.findByRole("button", { name: "Vista TV" }));
+    const dialog = screen.getByRole("dialog", { name: "Vista TV" });
+    expect(within(dialog).getByLabelText("Indirizzo per la TV")).toHaveTextContent(/^localhost(:\d+)?\/KX7P2$/);
+    expect(within(dialog).getByLabelText("Codice della partita")).toHaveTextContent("KX7P2");
+    expect(within(dialog).getByText(/\/tv e scrivi il codice/)).toBeTruthy();
+    expect(within(dialog).getByRole("link", { name: "Apri vista TV" })).toHaveAttribute("href", "/KX7P2");
+  });
+
   it("nella scheda del giocatore si vede chi segue dal telefono e lo si può scollegare", async () => {
     const { id, online, user } = await openAsMaster();
     online.state.seats.push({ playerId: "p1", profileId: "u-bruno", character: { glasses: "glasses_sun_black" } });
