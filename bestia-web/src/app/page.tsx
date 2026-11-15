@@ -362,12 +362,14 @@ function AccountLink() {
   );
 }
 
-/** Bustine: un pallino quando c'è una bustina gratis da aprire o gettoni da riscuotere. */
+/** Bustine: un pallino quando c'è una bustina gratis da aprire o gettoni e premi da riscuotere. */
 function PacksLink() {
   const state = useCollection();
   if (state.status === "off") return null;
   const ready = state.status === "ready" ? state.collection : null;
-  const gift = !!ready && (ready.welcome || ready.daily || ready.rewards.length > 0);
+  const won = ready ? (ready.packs?.classica ?? 0) + (ready.packs?.oro ?? 0) : 0;
+  const goals = ready?.goalsReady ?? 0;
+  const gift = !!ready && (ready.welcome || ready.daily || ready.rewards.length > 0 || won > 0 || goals > 0);
   return (
     <Link
       href="/bustine"
@@ -378,7 +380,7 @@ function PacksLink() {
       <span className="max-w-full truncate font-semibold">Bustine</span>
       {gift && (
         <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-loss px-1 text-[11px] font-black text-white ring-2 ring-night-900">
-          {(ready.welcome ? 1 : 0) + (ready.daily ? 1 : 0) || "!"}
+          {(ready.welcome ? 1 : 0) + (ready.daily ? 1 : 0) + won + goals || "!"}
         </span>
       )}
     </Link>

@@ -25,11 +25,21 @@ export interface Collection {
   owned: ReadonlySet<string>;
   /** Gettoni guadagnati con le partite dall'ultima volta (da festeggiare una volta sola). */
   rewards: GameReward[];
+  /** Bustine vinte con gli obiettivi, da aprire gratis (0010_obiettivi.sql). */
+  packs?: BonusPacks;
+  /** Premi degli obiettivi pronti da riscuotere. */
+  goalsReady?: number;
+}
+
+export interface BonusPacks {
+  classica: number;
+  oro: number;
 }
 
 export interface PackResult {
   cards: PackCard[];
   coins: number;
+  packs?: BonusPacks;
 }
 
 export class CollectionError extends Error {
@@ -63,6 +73,8 @@ interface RawCollection {
   daily: boolean;
   items: string[];
   rewards: { game_id: string; title: string; coins: number }[];
+  packs?: BonusPacks;
+  goals_ready?: number;
 }
 
 export class CollectionService {
@@ -85,6 +97,8 @@ export class CollectionService {
       daily: raw.daily,
       owned: new Set(raw.items ?? []),
       rewards: (raw.rewards ?? []).map((r) => ({ gameId: r.game_id, title: r.title, coins: r.coins })),
+      packs: raw.packs,
+      goalsReady: raw.goals_ready,
     };
   }
 
@@ -92,8 +106,8 @@ export class CollectionService {
     await this.user();
     const { data, error } = await this.sb.rpc("open_pack", { p_kind: kind });
     if (error) throw friendly(error);
-    const raw = data as { coins: number; cards: { id: string; rarity: Rarity; new: boolean; coins: number }[] };
-    return { coins: raw.coins, cards: raw.cards.map((c) => ({ id: c.id, rarity: c.rarity, isNew: c.new, coins: c.coins })) };
+    const raw = data as { coins: number; packs?: BonusPacks; cards: { id: string; rarity: Rarity; new: boolean; coins: number }[] };
+    return { coins: raw.coins, packs: raw.packs, cards: raw.cards.map((c) => ({ id: c.id, rarity: c.rarity, isNew: c.new, coins: c.coins })) };
   }
 }
 
@@ -167,11 +181,18 @@ export function applyPackResult(kind: PackKind, result: PackResult) {
     collection: {
       ...c,
       coins: result.coins,
+      packs: result.packs ?? c.packs,
       owned,
       welcome: kind === "benvenuto" ? false : c.welcome,
       daily: kind === "giornaliera" ? false : c.daily,
     },
   });
+}
+
+/** Dopo aver riscosso premi degli obiettivi: nuovi gettoni, bustine vinte e premi rimasti. */
+export function applyGoalsClaim(coins: number, packs: BonusPacks, goalsReady: number) {
+  if (state.status !== "ready") return;
+  set({ status: "ready", collection: { ...state.collection, coins, packs, goalsReady } });
 }
 
 /** I premi delle partite sono stati festeggiati: non mostrarli di nuovo. */
