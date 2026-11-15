@@ -57,6 +57,7 @@ import { getHistory, resultsOf } from "@/lib/history";
 import { InviteSheet } from "@/components/InviteSheet";
 import { usePref } from "@/lib/prefs";
 import { isSupabaseConfigured } from "@/lib/supabase";
+import { displayHost, shortTvPath } from "@/lib/tvLink";
 import { Table } from "@/components/Table";
 import { defaultSeatAfter, SeatPicker } from "@/components/SeatPicker";
 
@@ -562,7 +563,7 @@ export default function GamePage() {
         />
       )}
       {sheet === "bet" && <BetSheet onClose={() => setSheet(null)} state={state} run={run} />}
-      {sheet === "tv" && <TvSheet onClose={() => setSheet(null)} gameId={id} />}
+      {sheet === "tv" && <TvSheet onClose={() => setSheet(null)} gameId={id} code={game.meta?.code} />}
       <EndSheet open={sheet === "end"} onClose={() => setSheet(null)} state={state} run={run} />
       <MenuSheet open={sheet === "menu"} onClose={() => setSheet(null)} onPick={setSheet} state={state} />
       <Sheet open={sheet === "history"} onClose={() => setSheet(null)} title="Cronologia">
@@ -1018,15 +1019,31 @@ function EndSheet({ open, onClose, state, run }: { open: boolean; onClose: () =>
   );
 }
 
-function TvSheet({ onClose, gameId }: { onClose: () => void; gameId: string }) {
+function TvSheet({ onClose, gameId, code }: { onClose: () => void; gameId: string; code?: string }) {
   // Montato solo quando è aperto, quindi sempre nel browser.
-  const url = `${window.location.origin}/tv/${gameId}`;
+  const origin = window.location.origin;
+  // Con il codice della partita (online) basta un indirizzo corto, comodo da scrivere col telecomando.
+  const href = code ? shortTvPath(code) : `/tv/${gameId}`;
+  const host = displayHost(origin);
   return (
     <Sheet open onClose={onClose} title="Vista TV">
       <p className="text-sm text-white/70">Apri questa pagina sullo schermo da proiettare: si aggiorna da sola a ogni mano.</p>
-      <p className="mt-3 break-all rounded-xl bg-night-900 p-3 font-mono text-sm">{url}</p>
+      {code ? (
+        <>
+          <p className="mt-4 text-xs font-semibold uppercase tracking-[0.2em] text-white/45">Scrivi sulla TV</p>
+          <p aria-label="Indirizzo per la TV" className="mt-1 break-all rounded-xl bg-night-900 p-3 text-center font-mono text-xl font-bold">
+            {`${host}${href}`}
+          </p>
+          <p className="mt-3 text-center text-sm text-white/60">oppure apri {host}/tv e scrivi il codice</p>
+          <p aria-label="Codice della partita" className="mt-1 text-center font-mono text-5xl font-black tracking-[0.25em] text-gold-400">
+            {code}
+          </p>
+        </>
+      ) : (
+        <p className="mt-3 break-all rounded-xl bg-night-900 p-3 font-mono text-sm">{`${origin}${href}`}</p>
+      )}
       <a
-        href={`/tv/${gameId}`}
+        href={href}
         target="_blank"
         rel="noreferrer"
         className="mt-4 block rounded-2xl bg-gold-400 py-3.5 text-center font-bold text-night-950"
