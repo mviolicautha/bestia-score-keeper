@@ -15,6 +15,7 @@ import {
 } from "@/lib/avatar/collection";
 import { collectibles, formatWait, msToNextDaily, PACKS, progressOf, RARITY_INFO, rarityOf, REWARDS, type PackKind } from "@/lib/avatar/packs";
 import { getCharacter, saveCharacter } from "@/lib/avatar/store";
+import { daysToAdvent } from "@/lib/advent";
 import { play, unlock } from "@/lib/sounds";
 import { useAccount } from "@/lib/useAccount";
 import { Character, cropAround } from "@/components/Character";
@@ -138,6 +139,7 @@ function Shop({
 
       {collection.rewards.length > 0 && <RewardsBanner collection={collection} />}
 
+      <AdventLink ready={collection.adventReady} />
       <GoalsLink ready={collection.goalsReady} />
 
 
@@ -346,6 +348,42 @@ function ShopPack({ kind, coins, free, onOpen }: { kind: PackKind; coins: number
       </button>
       <p className="mt-1.5 h-4 text-[11px] text-white/40">{free > 0 ? "Vinta con gli obiettivi" : missing > 0 ? `Ti mancano ${missing} gettoni` : ""}</p>
     </div>
+  );
+}
+
+/** Calendario dell'avvento: da novembre come conto alla rovescia, a dicembre con le caselle da aprire. */
+function AdventLink({ ready }: { ready?: number }) {
+  // senza 0011_calendario.sql il database non manda il conteggio
+  const before = daysToAdvent();
+  if (ready === undefined || before === null) return null;
+  return (
+    <Link
+      href="/calendario"
+      className={`relative mb-3 flex items-center gap-3 overflow-hidden rounded-3xl bg-gradient-to-br from-[#5a0a18] to-night-800 p-4 ring-1 transition hover:brightness-110 active:scale-[0.98] ${
+        ready > 0 ? "ring-gold-400/60" : "ring-white/10"
+      }`}
+    >
+      <span className={`text-3xl ${ready > 0 ? "animate-bounce-soft motion-reduce:animate-none" : ""}`} aria-hidden>
+        🎄
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="font-black leading-tight">Calendario dell&apos;avvento</p>
+        <p className="text-sm text-white/60">
+          {before > 0
+            ? `Si apre tra ${before} ${before === 1 ? "giorno" : "giorni"}`
+            : ready > 0
+              ? ready === 1
+                ? "Una casella da aprire"
+                : `${ready} caselle da aprire`
+              : "Torna domani per la prossima casella"}
+        </p>
+      </div>
+      {ready > 0 ? (
+        <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-loss px-1.5 text-xs font-black text-white">{ready}</span>
+      ) : (
+        <ChevronRight size={18} className="text-white/40" />
+      )}
+    </Link>
   );
 }
 

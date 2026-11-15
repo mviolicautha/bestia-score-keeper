@@ -47,6 +47,9 @@ Poi, sempre nel SQL Editor, esegui anche gli altri script in [`supabase/migratio
 - `0010_obiettivi.sql`: obiettivi una tantum e 3 sfide a settimana, con premi in gettoni o bustine. Il master
   salva a fine partita anche le statistiche della serata di ognuno; quelle delle partite già giocate le completa il
   telefono del master la prima volta che apre "Obiettivi". Finché non lo esegui, la voce Obiettivi non compare.
+- `0011_calendario.sql`: calendario dell'avvento, una casella al giorno dal 1° al 24 dicembre (recuperabili per tutto
+  dicembre) con gettoni, pezzi mancanti, bustine d'oro e un leggendario il 24. Finché non lo esegui, il calendario
+  non compare nelle Bustine.
 
 ## 4. Copia URL e chiave pubblica
 Vai in **Project Settings → API Keys** (o **Data API**) e copia:
