@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { analyzeNight, nicknamesOf } from "@/lib/stats";
 import { ArrowLeft, ArrowRight, Coins, Flame, LogOut, Share2, Shirt, Trophy } from "lucide-react";
 import { formatCents, simplifyDebts, type GameState, type HistoryEntry, type PlayerId, type PlayerState } from "@/engine";
 import { useGame } from "@/lib/useGame";
@@ -128,6 +129,10 @@ function PlayerView({
   const amount = me.balanceCents;
   const debts = ended ? simplifyDebts(Object.fromEntries(state.players.map((p) => [p.id, p.balanceCents]))) : [];
   const mine = debts.filter((t) => t.from === me.id || t.to === me.id);
+  const nickname = useMemo(
+    () => (ended ? nicknamesOf(analyzeNight(state, history), (c, signed) => formatCents(c, { signed }))[me.id] : undefined),
+    [ended, state, history, me.id],
+  );
 
   return (
     <main className="mx-auto min-h-dvh max-w-lg px-3 pb-10 pt-[max(0.5rem,env(safe-area-inset-top))]">
@@ -166,6 +171,18 @@ function PlayerView({
 
       {/* avvisi */}
       <div className="mt-3 space-y-2" aria-live="polite">
+        {nickname && (
+          <section className="flex items-center gap-4 rounded-3xl bg-gradient-to-br from-felt-600 to-felt-700 p-4 shadow-lg">
+            <span className="text-5xl leading-none" aria-hidden>
+              {nickname.emoji}
+            </span>
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-white/60">Il tuo soprannome della serata</p>
+              <p className="text-xl font-black text-gold-400">{nickname.title}</p>
+              <p className="truncate text-sm text-white/75">{nickname.reason}</p>
+            </div>
+          </section>
+        )}
         {!me.active && !ended && <Notice tone="info">Sei fuori dal tavolo: il tuo saldo resta nei conti finali.</Notice>}
         {dealer && (
           <Notice tone="gold" icon={<Coins size={18} />}>

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { analyzeNight, nicknamesOf } from "@/lib/stats";
 import { ArrowRight, RotateCcw, Share2, Trophy } from "lucide-react";
 import { colorIndex, formatCents, simplifyDebts, type GameState, type HistoryEntry } from "@/engine";
 import { Button } from "./Sheet";
@@ -33,6 +34,7 @@ export function Results({
   const mostBestie = [...state.players].sort((a, b) => b.stats.bestie - a.stats.bestie)[0];
   const mostTricks = [...state.players].sort((a, b) => b.stats.tricks - a.stats.tricks)[0];
   const winner = ranking[0];
+  const nicknames = useMemo(() => nicknamesOf(analyzeNight(state, history), (c, signed) => formatCents(c, { signed })), [state, history]);
   const [sharing, setSharing] = useState(false);
 
   return (
@@ -57,7 +59,14 @@ export function Results({
           <li key={p.id} className="flex items-center gap-3 border-b border-white/5 px-4 py-2.5 last:border-0">
             <span className="tabular w-5 text-center text-sm font-bold text-white/40">{i + 1}</span>
             <Avatar name={p.name} seat={seat(p.id)} size="sm" />
-            <span className="flex-1 truncate font-semibold">{p.name}</span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-semibold">{p.name}</span>
+              {nicknames[p.id] && (
+                <span className="block truncate text-xs text-gold-400/90" title={nicknames[p.id].reason}>
+                  {nicknames[p.id].emoji} {nicknames[p.id].title} <span className="text-white/40">· {nicknames[p.id].reason}</span>
+                </span>
+              )}
+            </span>
             <span className={`tabular font-black ${p.balanceCents < 0 ? "text-loss" : p.balanceCents > 0 ? "text-gain" : "text-white/50"}`}>
               {formatCents(p.balanceCents, { signed: true })}
             </span>

@@ -59,6 +59,15 @@ export default function HistoryPage() {
               <Stat label="Saldo totale" value={formatCents(total, { signed: true })} tone={total > 0 ? "gain" : total < 0 ? "loss" : undefined} />
             </div>
           )}
+          {played.length > 0 && (
+            <Link
+              href="/statistiche"
+              className="-mt-3 mb-6 flex items-center justify-between rounded-2xl bg-night-800 px-4 py-3 text-sm font-semibold ring-1 ring-white/5 hover:bg-night-700"
+            >
+              <span>📊 Statistiche, rivalità e soprannomi</span>
+              <ChevronRight size={18} className="text-white/30" />
+            </Link>
+          )}
 
           {error && <p className="text-sm text-red-300">{error}</p>}
           {list?.length === 0 && (
