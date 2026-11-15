@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, Crown, KeyRound, LogOut, Pencil, Plus, QrCode, RefreshCw, Trash2, Unlink, UserPlus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Crown, KeyRound, LogOut, Pencil, Plus, QrCode, RefreshCw, Trash2, Trophy, Unlink, UserPlus } from "lucide-react";
 import { getGroups, type GroupDetail, type GroupGame, type GroupMember } from "@/lib/groups";
 import { getHistory, type PlayerResult } from "@/lib/history";
 import { formatCents } from "@/engine";
@@ -261,6 +261,7 @@ export default function GroupPage() {
 
       {selected && (
         <MemberSheet
+          groupId={g.id}
           member={g.members.find((m) => m.id === selected.id) ?? selected}
           isAdmin={g.isAdmin}
           onClose={() => setSelected(null)}
@@ -346,6 +347,7 @@ function Shell({ children }: { children: React.ReactNode }) {
 
 /** Dettagli di un membro e le azioni permesse a chi guarda. */
 function MemberSheet({
+  groupId,
   member: m,
   isAdmin,
   onClose,
@@ -354,6 +356,7 @@ function MemberSheet({
   onUnlink,
   onRemove,
 }: {
+  groupId: string;
   member: GroupMember;
   isAdmin: boolean;
   onClose: () => void;
@@ -374,6 +377,15 @@ function MemberSheet({
         </div>
       </div>
       <div className="mt-5 space-y-2">
+        {m.profileId && (
+          <Link
+            href={`/compagnie/${groupId}/vetrina/${m.id}`}
+            className="flex w-full items-center gap-3 rounded-2xl bg-gold-400/15 px-4 py-3 text-left font-semibold text-gold-400 ring-1 ring-gold-400/30 hover:bg-gold-400/20"
+          >
+            <Trophy size={18} />
+            {m.isMe ? "La tua vetrina degli obiettivi" : "Vetrina degli obiettivi"}
+          </Link>
+        )}
         {canRename && (
           <Action icon={<Pencil size={18} />} label={m.isMe ? "Cambia il tuo nome" : "Rinomina"} onClick={() => onRename(m)} />
         )}

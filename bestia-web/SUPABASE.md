@@ -52,6 +52,8 @@ Poi, sempre nel SQL Editor, esegui anche gli altri script in [`supabase/migratio
   non compare nelle Bustine.
 - `0012_festa.sql`: festa al tavolo, cioè gli obiettivi sbloccati in una serata, mostrati sulla TV a fine partita e
   in un popup sul telefono di chi li ha presi. Finché non lo esegui, a fine partita non compare niente in più.
+- `0013_vetrina.sql`: vetrina degli obiettivi di ogni membro della compagnia, con i più rari in alto e quanti nella
+  compagnia li hanno. Si apre toccando un membro nella pagina della compagnia.
 
 ## 4. Copia URL e chiave pubblica
 Vai in **Project Settings → API Keys** (o **Data API**) e copia:
