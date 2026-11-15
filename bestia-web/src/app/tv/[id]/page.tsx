@@ -14,6 +14,10 @@ import { getOnline } from "@/lib/online";
 import { usePref } from "@/lib/prefs";
 import { isUnlocked, play, unlock } from "@/lib/sounds";
 import { Moments } from "@/components/Moments";
+import { FactCard, TvCarousel, type Slide } from "@/components/TvCarousel";
+import { tvFacts, STREAK_MIN } from "@/lib/tvFacts";
+import { analyzeNight, nicknamesOf } from "@/lib/stats";
+import { money } from "@/lib/report";
 
 /** Vista da proiettare: sola lettura, si aggiorna da sola. */
 export default function TvPage() {
@@ -46,6 +50,50 @@ export default function TvPage() {
 
   // Le vincite dell'ultima mano compaiono per qualche secondo sopra i posti.
   const flash = last?.event.type === "hand_played" ? last.outcome.deltas : undefined;
+
+  // curiosità della serata e premi finali, a rotazione nel pannello in basso
+  const times = game.events.map((e) => e.at);
+  const live = tvFacts(state, game.history, times);
+  const debts = ended ? simplifyDebts(Object.fromEntries(state.players.map((p) => [p.id, p.balanceCents]))) : [];
+  const slides: Slide[] = ended
+    ? [
+        {
+          key: "saldi",
+          node: (
+            <>
+              <h2 className="mb-[0.6em] text-[1.2em] font-bold">Saldi da pareggiare</h2>
+              <ul className="space-y-[0.5em]">
+                {debts.map((t, i) => (
+                  <li key={i} className="flex items-center gap-[0.5em]">
+                    <span className="font-semibold">{name(t.from)}</span>
+                    <ArrowRight className="h-[1em] w-[1em] text-white/40" />
+                    <span className="flex-1 font-semibold">{name(t.to)}</span>
+                    <span className="tabular font-black text-gold-400">{formatCents(t.amountCents)}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ),
+        },
+        ...Object.entries(nicknamesOf(analyzeNight(state, game.history), money)).map(([pid, n]) => ({
+          key: `premio-${n.id}`,
+          node: <FactCard emoji={n.emoji} title={`Premiazione · ${n.title}`} headline={name(pid)} detail={n.reason} tone="gold" />,
+        })),
+      ]
+    : [
+        {
+          key: "mani",
+          node: (
+            <>
+              <h2 className="mb-[0.3em] text-[1.1em] font-bold">Ultime mani</h2>
+              <div className="text-[0.75em]">
+                <HistoryList state={state} history={game.history} times={times} limit={4} large />
+              </div>
+            </>
+          ),
+        },
+        ...live.facts.map((f) => ({ key: f.id, node: <FactCard {...f} /> })),
+      ];
 
   return (
     <CharacterOverrides value={overrides}>
@@ -93,6 +141,16 @@ export default function TvPage() {
                     {p.id === state.dealerId && !ended && (
                       <span className="rounded-full bg-gold-400 px-[0.4em] text-[0.6em] font-black text-black">D</span>
                     )}
+                    {!ended && (live.form[p.id]?.streak ?? 0) >= STREAK_MIN && (
+                      <span className="shrink-0 text-[0.7em] font-black text-gold-400" title="Mani vinte di fila">
+                        🔥{live.form[p.id].streak}
+                      </span>
+                    )}
+                    {!ended && live.driest === p.id && (
+                      <span className="shrink-0 text-[0.7em]" title="Non vince da tante mani">
+                        🥶
+                      </span>
+                    )}
                   </span>
                   <Sparkline history={game.history} playerId={p.id} />
                   <span
@@ -109,28 +167,7 @@ export default function TvPage() {
           </section>
 
           <section className="min-h-0 flex-1 overflow-hidden rounded-[1.2em] bg-night-800 p-[1em] ring-1 ring-white/5">
-            {ended ? (
-              <>
-                <h2 className="mb-[0.6em] text-[1.2em] font-bold">Saldi da pareggiare</h2>
-                <ul className="space-y-[0.5em]">
-                  {simplifyDebts(Object.fromEntries(state.players.map((p) => [p.id, p.balanceCents]))).map((t, i) => (
-                    <li key={i} className="flex items-center gap-[0.5em]">
-                      <span className="font-semibold">{name(t.from)}</span>
-                      <ArrowRight className="h-[1em] w-[1em] text-white/40" />
-                      <span className="flex-1 font-semibold">{name(t.to)}</span>
-                      <span className="tabular font-black text-gold-400">{formatCents(t.amountCents)}</span>
-                    </li>
-                  ))}
-                </ul>
-              </>
-            ) : (
-              <>
-                <h2 className="mb-[0.3em] text-[1.1em] font-bold">Ultime mani</h2>
-                <div className="text-[0.75em]">
-                  <HistoryList state={state} history={game.history} times={game.events.map((e) => e.at)} limit={4} large />
-                </div>
-              </>
-            )}
+            <TvCarousel slides={slides} resetKey={game.history.length} />
           </section>
         </div>
       </div>
