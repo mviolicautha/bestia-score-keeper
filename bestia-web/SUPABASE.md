@@ -50,6 +50,8 @@ Poi, sempre nel SQL Editor, esegui anche gli altri script in [`supabase/migratio
 - `0011_calendario.sql`: calendario dell'avvento, una casella al giorno dal 1° al 24 dicembre (recuperabili per tutto
   dicembre) con gettoni, pezzi mancanti, bustine d'oro e un leggendario il 24. Finché non lo esegui, il calendario
   non compare nelle Bustine.
+- `0012_festa.sql`: festa al tavolo, cioè gli obiettivi sbloccati in una serata, mostrati sulla TV a fine partita e
+  in un popup sul telefono di chi li ha presi. Finché non lo esegui, a fine partita non compare niente in più.
 
 ## 4. Copia URL e chiave pubblica
 Vai in **Project Settings → API Keys** (o **Data API**) e copia:

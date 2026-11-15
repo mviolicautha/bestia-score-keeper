@@ -4,9 +4,16 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getRepository } from "@/lib/repository";
 import { route } from "@/test/setup-next";
+import { ACHIEVEMENT_BY_ID } from "@/lib/achievements";
+import type { GameUnlocks } from "@/lib/unlocks";
+import { SLIDE_MS } from "@/components/TvCarousel";
 import TvPage from "./page";
 
 vi.mock("next/navigation", async () => (await import("@/test/setup-next")).navigationMock);
+
+// gli obiettivi della serata arrivano dal database: qui li decide il test
+const unlocks: { current: GameUnlocks | null } = { current: null };
+vi.mock("@/lib/unlocks", () => ({ useGameUnlocks: () => unlocks.current }));
 
 const norm = (t: string | null | undefined) => (t ?? "").replace(/ /g, " ");
 
@@ -48,6 +55,27 @@ describe("vista TV", () => {
     render(<TvPage />);
     expect(await screen.findByText("Saldi da pareggiare")).toBeInTheDocument();
     expect(screen.getByText("Partita terminata", { exact: false })).toBeInTheDocument();
+  });
+
+  it("a fine partita festeggia gli obiettivi sbloccati stasera", async () => {
+    unlocks.current = {
+      ready: true,
+      players: [{ playerId: "p2", name: "Carla", mine: false, achievements: [ACHIEVEMENT_BY_ID.tripla_bestia, ACHIEVEMENT_BY_ID.abisso] }],
+    };
+    const { id, repo } = await seed();
+    await repo.appendEvent(id, { type: "hand_played", winners: [{ playerIds: ["p2"], tricks: 3 }], losers: [] }, "in_progress");
+    await repo.appendEvent(id, { type: "game_ended" }, "ended");
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      render(<TvPage />);
+      await screen.findByText("Saldi da pareggiare");
+      await act(() => vi.advanceTimersByTimeAsync(SLIDE_MS + 100));
+      expect(screen.getByText("2 obiettivi sbloccati")).toBeInTheDocument();
+      expect(screen.getByText("🐗 Tripla bestia · 🕳️ Abisso")).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+      unlocks.current = null;
+    }
   });
 
   it("avvisa se la partita non è su questo dispositivo", async () => {

@@ -47,6 +47,7 @@ import { useGame } from "@/lib/useGame";
 import { describeEntry } from "@/lib/describe";
 import { newId as newPlayerId } from "@/lib/repository";
 import { HistoryList } from "@/components/HistoryList";
+import { UnlockedPopup } from "@/components/UnlockedPopup";
 import { Button, Sheet } from "@/components/Sheet";
 import { Results } from "@/components/Results";
 import { ReportSheet } from "@/components/ReportSheet";
@@ -190,6 +191,8 @@ export default function GamePage() {
     return (
       <CharacterOverrides value={overrides}>
         <Results state={state} history={game.history} times={game.events.map((e) => e.at)} title={game.meta?.title} onReopen={undo} backHref="/" />
+        {/* anche il master ha i suoi obiettivi (solo per le partite online) */}
+        <UnlockedPopup gameId={id} ended={!!onlineInfo} />
       </CharacterOverrides>
     );
   }
