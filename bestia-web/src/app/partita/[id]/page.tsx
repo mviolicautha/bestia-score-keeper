@@ -38,6 +38,7 @@ import {
   isSettingUp,
   nextActiveAfter,
   type GameState,
+  type HistoryEntry as EngineHistoryEntry,
   type PlayerId,
   type PlayerState,
   type WinnerGroup,
@@ -137,7 +138,7 @@ export default function GamePage() {
   const groupCharacters = gameGroup?.characters;
   const remoteShared = useMemo(() => ({ ...sharedCharacters, ...groupCharacters }), [sharedCharacters, groupCharacters]);
   const overrides = useRemoteCharacters(game.state, onlineInfo?.seats, remoteShared);
-  useSaveResults(id, onlineInfo?.isMaster ? game.state : null);
+  useSaveResults(id, onlineInfo?.isMaster ? game.state : null, game.history);
   // i personaggi creati qui li vedono anche telefoni e TV
   const shareCharacter = useShareCharacters(game.state, onlineInfo);
   // bustine: il master veste il suo personaggio con il suo album, gli altri con i pezzi liberi
@@ -737,19 +738,19 @@ const amountColor = (c: number) => (c < 0 ? "text-loss" : c > 0 ? "text-gain" : 
  * Storico: quando la partita termina il master ne salva i saldi finali (anche aprendo una
  * partita già terminata, per quelle chiuse prima dello storico). Se viene riaperta, li toglie.
  */
-function useSaveResults(gameId: string, state: GameState | null) {
+function useSaveResults(gameId: string, state: GameState | null, gameHistory: EngineHistoryEntry[]) {
   const last = useRef<{ status: string; key: string } | null>(null);
   useEffect(() => {
     const history = getHistory();
     if (!history || !state) return;
-    const results = resultsOf(state);
+    const results = resultsOf(state, gameHistory);
     const key = `${state.status}:${JSON.stringify(results)}`;
     const prev = last.current;
     if (prev?.key === key) return;
     last.current = { status: state.status, key };
     if (state.status === "ended") void history.saveResults(gameId, results).catch(() => (last.current = prev));
     else if (prev?.status === "ended") void history.saveResults(gameId, []).catch(() => (last.current = prev));
-  }, [gameId, state]);
+  }, [gameId, state, gameHistory]);
 }
 
 function Centered({ children }: { children: React.ReactNode }) {

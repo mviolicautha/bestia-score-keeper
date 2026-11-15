@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { ChevronLeft, Clock, Coins, Gift, HelpCircle, Lock } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, Coins, Gift, HelpCircle, Lock, Trophy } from "lucide-react";
 import { catalog, isEmpty } from "@/lib/avatar/catalog";
 import {
   applyPackResult,
@@ -114,8 +114,10 @@ function Shop({
     setEditing(true);
   }
 
-  // dopo una bustina pagata, proporre la stessa se i gettoni bastano
-  const again = opening && opening.result && PACKS[opening.kind].price > 0 && collection.coins >= PACKS[opening.kind].price ? opening.kind : null;
+  const free = (kind: PackKind) => (kind === "classica" || kind === "oro" ? (collection.packs?.[kind] ?? 0) : 0);
+  // dopo una bustina pagata (o vinta), proporre la stessa se ce n'è un'altra vinta o se i gettoni bastano
+  const again =
+    opening && opening.result && PACKS[opening.kind].price > 0 && (free(opening.kind) > 0 || collection.coins >= PACKS[opening.kind].price) ? opening.kind : null;
 
   return (
     <>
@@ -136,6 +138,9 @@ function Shop({
 
       {collection.rewards.length > 0 && <RewardsBanner collection={collection} />}
 
+      <GoalsLink ready={collection.goalsReady} />
+
+
       <section aria-label="Bustine gratis" className="space-y-3">
         {collection.welcome && (
           <FreePack kind="benvenuto" onOpen={() => void open("benvenuto")} highlight />
@@ -146,7 +151,7 @@ function Shop({
       <h2 className="mb-3 mt-8 text-sm font-bold uppercase tracking-[0.2em] text-white/45">Negozio</h2>
       <section aria-label="Negozio" className="grid grid-cols-2 gap-3">
         {(["classica", "oro"] as const).map((kind) => (
-          <ShopPack key={kind} kind={kind} coins={collection.coins} onOpen={() => void open(kind)} />
+          <ShopPack key={kind} kind={kind} coins={collection.coins} free={free(kind)} onOpen={() => void open(kind)} />
         ))}
       </section>
 
@@ -163,7 +168,7 @@ function Shop({
           onClose={() => setOpening(null)}
           onWear={name ? wear : undefined}
           onAgain={again ? () => void open(again) : undefined}
-          againLabel={again ? `Un'altra (${PACKS[again].price} gettoni)` : undefined}
+          againLabel={again ? (free(again) > 0 ? `Un'altra (vinta: ${free(again)})` : `Un'altra (${PACKS[again].price} gettoni)`) : undefined}
         />
       )}
       {editing && (
@@ -310,12 +315,18 @@ function DailyCountdown() {
   );
 }
 
-function ShopPack({ kind, coins, onOpen }: { kind: PackKind; coins: number; onOpen: () => void }) {
+function ShopPack({ kind, coins, free, onOpen }: { kind: PackKind; coins: number; free: number; onOpen: () => void }) {
   const pack = PACKS[kind];
-  const missing = pack.price - coins;
+  const missing = free > 0 ? 0 : pack.price - coins;
   return (
-    <div className="flex flex-col items-center rounded-3xl bg-night-800 p-3 pt-4 text-center ring-1 ring-white/5">
-      <PackArt pack={pack} className={`w-24 text-[13px] ${missing > 0 ? "opacity-70" : ""}`} />
+    <div
+      className={`relative flex flex-col items-center rounded-3xl bg-night-800 p-3 pt-4 text-center ring-1 ${free > 0 ? "ring-gold-400/60" : "ring-white/5"}`}
+      style={free > 0 ? { boxShadow: `0 0 30px -8px ${pack.colors.via}` } : undefined}
+    >
+      {free > 0 && (
+        <span className="absolute -right-1.5 -top-1.5 rounded-full bg-gain px-2 py-0.5 text-[11px] font-black text-night-950 ring-2 ring-night-900">×{free}</span>
+      )}
+      <PackArt pack={pack} className={`w-24 text-[13px] ${missing > 0 ? "opacity-70" : free > 0 ? "animate-pack-float motion-reduce:animate-none" : ""}`} />
       <p className="mt-3 font-black leading-tight">{pack.name}</p>
       <p className="mt-0.5 min-h-[2.5em] text-xs text-white/50">{pack.tagline}</p>
       <button
@@ -323,10 +334,45 @@ function ShopPack({ kind, coins, onOpen }: { kind: PackKind; coins: number; onOp
         disabled={missing > 0}
         className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-2xl bg-gold-400 py-2.5 font-bold text-night-950 transition active:scale-[0.97] disabled:bg-night-700 disabled:text-white/45"
       >
-        <Coins size={16} /> {pack.price}
+        {free > 0 ? (
+          <>
+            <Gift size={16} /> Apri gratis
+          </>
+        ) : (
+          <>
+            <Coins size={16} /> {pack.price}
+          </>
+        )}
       </button>
-      <p className="mt-1.5 h-4 text-[11px] text-white/40">{missing > 0 ? `Ti mancano ${missing} gettoni` : ""}</p>
+      <p className="mt-1.5 h-4 text-[11px] text-white/40">{free > 0 ? "Vinta con gli obiettivi" : missing > 0 ? `Ti mancano ${missing} gettoni` : ""}</p>
     </div>
+  );
+}
+
+/** Obiettivi e sfide della settimana: un pallino quando ci sono premi da riscuotere. */
+function GoalsLink({ ready }: { ready?: number }) {
+  // senza 0010_obiettivi.sql il database non manda il conteggio: niente obiettivi
+  if (ready === undefined) return null;
+  return (
+    <Link
+      href="/obiettivi"
+      className={`relative mb-5 flex items-center gap-3 rounded-3xl bg-night-800 p-4 ring-1 transition hover:bg-night-700 active:scale-[0.98] ${
+        ready > 0 ? "ring-gold-400/60" : "ring-white/10"
+      }`}
+    >
+      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-b from-sky-400/30 to-night-950 text-sky-300">
+        <Trophy size={22} className={ready > 0 ? "animate-bounce-soft motion-reduce:animate-none" : ""} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="font-black leading-tight">Obiettivi e sfide</p>
+        <p className="text-sm text-white/55">{ready > 0 ? (ready === 1 ? "1 premio da riscuotere" : `${ready} premi da riscuotere`) : "Gettoni e bustine in palio ogni settimana"}</p>
+      </div>
+      {ready > 0 ? (
+        <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-loss px-1.5 text-xs font-black text-white">{ready}</span>
+      ) : (
+        <ChevronRight size={18} className="text-white/40" />
+      )}
+    </Link>
   );
 }
 
@@ -345,6 +391,9 @@ function HowToEarn() {
         </li>
         <li>• Al massimo {REWARDS.gamesPerDay} partite premiate al giorno.</li>
         <li>• I doppioni diventano gettoni: più è raro il pezzo, più ne vale.</li>
+        <li>
+          • Negli <Link href="/obiettivi" className="font-semibold text-gold-400 underline-offset-2 hover:underline">obiettivi</Link> ci sono altri gettoni e bustine: una tantum e 3 sfide nuove ogni lunedì.
+        </li>
         <li>
           • Rarità:{" "}
           {(["comune", "rara", "epica", "leggendaria"] as const).map((r, i) => (

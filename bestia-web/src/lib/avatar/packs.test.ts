@@ -6,6 +6,8 @@ import { bestRarity, collectibles, formatWait, isFree, msToNextDaily, PACKS, pro
 import { editorAccess } from "./collection";
 
 const sql = readFileSync(join(__dirname, "../../../supabase/migrations/0009_bustine.sql"), "utf8");
+// 0010_obiettivi.sql riscrive open_pack: anche lì devono valere gli stessi numeri
+const sql10 = readFileSync(join(__dirname, "../../../supabase/migrations/0010_obiettivi.sql"), "utf8");
 
 describe("bustine", () => {
   it("i capelli sono liberi, tutto il resto si colleziona", () => {
@@ -30,8 +32,8 @@ describe("bustine", () => {
   });
 
   it("prezzi e dimensioni delle bustine sono quelli del database", () => {
-    for (const p of Object.values(PACKS)) {
-      const m = sql.match(new RegExp(`when '${p.kind}' then v_size := (\\d+); v_price := (\\d+);(?: v_min := '(\\w+)';)?`));
+    for (const p of Object.values(PACKS)) for (const file of [sql, sql10]) {
+      const m = file.match(new RegExp(`when '${p.kind}' then v_size := (\\d+); v_price := (\\d+);(?: v_min := '(\\w+)';)?`));
       expect(m, p.kind).not.toBeNull();
       expect(Number(m![1])).toBe(p.size);
       expect(Number(m![2])).toBe(p.price);
@@ -43,6 +45,10 @@ describe("bustine", () => {
     const weights = RARITIES.map((r) => RARITY_INFO[r].weight);
     expect(weights.reduce((a, b) => a + b, 0)).toBe(100);
     // soglie cumulative dalla più rara: 2, 11, 38
+    for (const file of [sql, sql10]) {
+      expect(file).toContain(`when v_roll < ${RARITY_INFO.leggendaria.weight + RARITY_INFO.epica.weight + RARITY_INFO.rara.weight} then 'rara'`);
+      expect(file).toContain(`when 'leggendaria' then ${RARITY_INFO.leggendaria.refund} when 'epica' then ${RARITY_INFO.epica.refund}`);
+    }
     expect(sql).toContain(`when v_roll < ${RARITY_INFO.leggendaria.weight} then 'leggendaria'`);
     expect(sql).toContain(`when v_roll < ${RARITY_INFO.leggendaria.weight + RARITY_INFO.epica.weight} then 'epica'`);
     expect(sql).toContain(`when v_roll < ${RARITY_INFO.leggendaria.weight + RARITY_INFO.epica.weight + RARITY_INFO.rara.weight} then 'rara'`);

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { replay, type GameState, type GameStatus } from "@/engine";
+import { replay, type GameState, type GameStatus, type HistoryEntry as EngineHistory } from "@/engine";
+import { nightStatsOf, type NightStats } from "./nightStats";
 import type { GameMeta, StoredEvent } from "./repository";
 import { ensureUser, getSupabase, isSupabaseConfigured } from "./supabase";
 
@@ -14,6 +15,8 @@ export interface PlayerResult {
   playerId: string;
   name: string;
   balanceCents: number;
+  /** Statistiche della serata (per gli obiettivi, 0010_obiettivi.sql): le salva il master. */
+  stats?: NightStats;
 }
 
 export interface HistoryEntry {
@@ -31,9 +34,13 @@ export interface HistoryEntry {
   winnerBalanceCents: number | null;
 }
 
-/** Saldi finali da salvare: tutti quelli che hanno giocato, anche se usciti prima della fine. */
-export function resultsOf(state: GameState): PlayerResult[] {
-  return state.players.map((p) => ({ playerId: p.id, name: p.name, balanceCents: p.balanceCents }));
+/**
+ * Saldi finali da salvare: tutti quelli che hanno giocato, anche se usciti prima della fine.
+ * Con la cronologia della partita ci aggiunge le statistiche della serata di ognuno.
+ */
+export function resultsOf(state: GameState, history?: EngineHistory[]): PlayerResult[] {
+  const stats = history ? nightStatsOf(state, history) : null;
+  return state.players.map((p) => ({ playerId: p.id, name: p.name, balanceCents: p.balanceCents, ...(stats?.[p.id] ? { stats: stats[p.id] } : {}) }));
 }
 
 const LOCAL_GAMES_KEY = "bestia:games";
@@ -90,7 +97,7 @@ export class HistoryService {
     await this.user();
     const { error } = await this.sb.rpc("save_game_results", {
       p_game: gameId,
-      p_results: results.map((r) => ({ player_id: r.playerId, name: r.name, balance_cents: r.balanceCents })),
+      p_results: results.map((r) => ({ player_id: r.playerId, name: r.name, balance_cents: r.balanceCents, ...(r.stats ? { stats: r.stats } : {}) })),
     });
     if (error) throw fail(error, "Risultati");
   }
@@ -133,7 +140,7 @@ export class HistoryService {
    */
   async importLocal(game: LocalGame, groupId: string | null = null): Promise<string> {
     await this.user();
-    const { state } = replay(game.events.map((e) => e.event));
+    const { state, history } = replay(game.events.map((e) => e.event));
     const status: GameStatus = state.status;
     const { data, error } = await this.sb.rpc("import_game", {
       p_title: game.meta.title,
@@ -143,7 +150,7 @@ export class HistoryService {
     });
     if (error) throw fail(error, `Importazione di "${game.meta.title}"`);
     const id = data as string;
-    if (status === "ended") await this.saveResults(id, resultsOf(state));
+    if (status === "ended") await this.saveResults(id, resultsOf(state, history));
     markImported(game.meta.id);
     return id;
   }

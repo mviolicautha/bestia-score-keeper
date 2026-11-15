@@ -44,6 +44,9 @@ Poi, sempre nel SQL Editor, esegui anche gli altri script in [`supabase/migratio
   sbloccano aprendo bustine (una di benvenuto, una al giorno, o comprate con i gettoni guadagnati giocando). Finché
   non lo esegui, l'app lascia tutti i pezzi liberi come prima. Se aggiungi pezzi al catalogo, dai loro una rarità in
   `src/lib/avatar/rarity.json` ed esegui nel SQL Editor l'SQL stampato da `npm run avatar:sql`.
+- `0010_obiettivi.sql`: obiettivi una tantum e 3 sfide a settimana, con premi in gettoni o bustine. Il master
+  salva a fine partita anche le statistiche della serata di ognuno; quelle delle partite già giocate le completa il
+  telefono del master la prima volta che apre "Obiettivi". Finché non lo esegui, la voce Obiettivi non compare.
 
 ## 4. Copia URL e chiave pubblica
 Vai in **Project Settings → API Keys** (o **Data API**) e copia:
