@@ -29,6 +29,8 @@ export interface Collection {
   packs?: BonusPacks;
   /** Premi degli obiettivi pronti da riscuotere. */
   goalsReady?: number;
+  /** Caselle del calendario dell'avvento da aprire (0011_calendario.sql). */
+  adventReady?: number;
 }
 
 export interface BonusPacks {
@@ -75,6 +77,7 @@ interface RawCollection {
   rewards: { game_id: string; title: string; coins: number }[];
   packs?: BonusPacks;
   goals_ready?: number;
+  advent_ready?: number;
 }
 
 export class CollectionService {
@@ -99,6 +102,7 @@ export class CollectionService {
       rewards: (raw.rewards ?? []).map((r) => ({ gameId: r.game_id, title: r.title, coins: r.coins })),
       packs: raw.packs,
       goalsReady: raw.goals_ready,
+      adventReady: raw.advent_ready,
     };
   }
 
@@ -193,6 +197,14 @@ export function applyPackResult(kind: PackKind, result: PackResult) {
 export function applyGoalsClaim(coins: number, packs: BonusPacks, goalsReady: number) {
   if (state.status !== "ready") return;
   set({ status: "ready", collection: { ...state.collection, coins, packs, goalsReady } });
+}
+
+/** Dopo una casella del calendario: gettoni, bustine, l'eventuale pezzo nuovo e caselle rimaste. */
+export function applyAdventOpen(coins: number, packs: BonusPacks, itemId: string | null) {
+  if (state.status !== "ready") return;
+  const c = state.collection;
+  const owned = itemId ? new Set([...c.owned, itemId]) : c.owned;
+  set({ status: "ready", collection: { ...c, coins, packs, owned, adventReady: Math.max(0, (c.adventReady ?? 1) - 1) } });
 }
 
 /** I premi delle partite sono stati festeggiati: non mostrarli di nuovo. */

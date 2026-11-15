@@ -368,7 +368,7 @@ function PacksLink() {
   if (state.status === "off") return null;
   const ready = state.status === "ready" ? state.collection : null;
   const won = ready ? (ready.packs?.classica ?? 0) + (ready.packs?.oro ?? 0) : 0;
-  const goals = ready?.goalsReady ?? 0;
+  const goals = (ready?.goalsReady ?? 0) + (ready?.adventReady ?? 0);
   const gift = !!ready && (ready.welcome || ready.daily || ready.rewards.length > 0 || won > 0 || goals > 0);
   return (
     <Link
