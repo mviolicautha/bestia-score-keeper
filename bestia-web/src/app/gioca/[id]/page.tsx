@@ -15,6 +15,7 @@ import { Character, CROPS } from "@/components/Character";
 import { CharacterEditor } from "@/components/CharacterEditor";
 import { editorAccess, useCollection } from "@/lib/avatar/collection";
 import { HistoryList } from "@/components/HistoryList";
+import { UnlockedPopup } from "@/components/UnlockedPopup";
 import { ReportSheet } from "@/components/ReportSheet";
 import { Table } from "@/components/Table";
 import { SEAT_COLORS } from "@/components/ui";
@@ -73,6 +74,7 @@ export default function PlayerPage() {
           }
         }}
       />
+      <UnlockedPopup gameId={id} ended={state.status === "ended"} />
       {editing && (
         <CharacterEditor
           name={me.name}

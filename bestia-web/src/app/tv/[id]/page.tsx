@@ -18,6 +18,7 @@ import { FactCard, TvCarousel, type Slide } from "@/components/TvCarousel";
 import { tvFacts, STREAK_MIN } from "@/lib/tvFacts";
 import { analyzeNight, nicknamesOf } from "@/lib/stats";
 import { money } from "@/lib/report";
+import { useGameUnlocks } from "@/lib/unlocks";
 
 /** Vista da proiettare: sola lettura, si aggiorna da sola. */
 export default function TvPage() {
@@ -37,6 +38,8 @@ export default function TvPage() {
     setSoundPref("on");
     if (ok) play("win");
   }
+  // festa al tavolo: gli obiettivi sbloccati stasera, quando il master ha salvato i risultati
+  const unlocks = useGameUnlocks(id, !!getOnline() && game.state?.status === "ended");
 
   if (game.loading) return <Full>Caricamento…</Full>;
   if (!game.state) return <Full>Partita non trovata su questo dispositivo.</Full>;
@@ -75,6 +78,18 @@ export default function TvPage() {
             </>
           ),
         },
+        ...(unlocks?.players ?? []).map((p) => ({
+          key: `obiettivi-${p.playerId ?? p.name}`,
+          node: (
+            <FactCard
+              emoji={p.achievements.length > 1 ? "🏅" : p.achievements[0].emoji}
+              title={p.achievements.length > 1 ? `${p.achievements.length} obiettivi sbloccati` : "Obiettivo sbloccato"}
+              headline={p.name}
+              detail={p.achievements.map((a) => `${a.emoji} ${a.title}`).join(" · ")}
+              tone="gold"
+            />
+          ),
+        })),
         ...Object.entries(nicknamesOf(analyzeNight(state, game.history), money)).map(([pid, n]) => ({
           key: `premio-${n.id}`,
           node: <FactCard emoji={n.emoji} title={`Premiazione · ${n.title}`} headline={name(pid)} detail={n.reason} tone="gold" />,
