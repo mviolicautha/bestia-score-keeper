@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { ChevronLeft, KeyRound, LogOut, PackageOpen, Pencil, Trash2, UserRound } from "lucide-react";
+import { BarChart3, ChevronLeft, KeyRound, LogOut, PackageOpen, Pencil, Trash2, UserRound } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { AccountError, MIN_PASSWORD, passwordProblem, usernameProblem, type Account, type AccountService } from "@/lib/account";
 import { restartApp, useAccount } from "@/lib/useAccount";
@@ -251,6 +251,7 @@ function Profile({ account, accounts, onChanged }: { account: Account; accounts:
       <ul className="mt-5 divide-y divide-white/5 overflow-hidden rounded-2xl bg-night-800 ring-1 ring-white/5">
         <Row icon={<Pencil size={18} />} label="Nome al tavolo" detail={name} onClick={() => setEditingName(true)} />
         <Row icon={<UserRound size={18} />} label="Personaggio" onClick={openCharacter} />
+        <Row icon={<BarChart3 size={18} />} label="Statistiche e rivalità" onClick={() => router.push("/statistiche")} />
         {collection.status !== "off" && (
           <Row
             icon={<PackageOpen size={18} />}

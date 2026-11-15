@@ -7,6 +7,8 @@ import { ChevronLeft, ChevronRight, Crown, KeyRound, LogOut, Pencil, Plus, QrCod
 import { getGroups, type GroupDetail, type GroupGame, type GroupMember } from "@/lib/groups";
 import { getHistory, type PlayerResult } from "@/lib/history";
 import { formatCents } from "@/engine";
+import { analyzeNight, nicknamesOf, type Nickname } from "@/lib/stats";
+import { getStats } from "@/lib/statsData";
 import { useAccount } from "@/lib/useAccount";
 import { Button, Sheet } from "@/components/Sheet";
 import { InviteSheet } from "@/components/InviteSheet";
@@ -23,6 +25,8 @@ export default function GroupPage() {
   const [group, setGroup] = useState<GroupDetail | null | undefined>(undefined);
   const [games, setGames] = useState<GroupGame[] | null>(null);
   const [results, setResults] = useState<Record<string, PlayerResult[]>>({});
+  /** Soprannomi dell'ultima serata terminata, per membro. */
+  const [nicknames, setNicknames] = useState<Record<string, Nickname>>({});
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const [confirm, setConfirm] = useState<ConfirmRequest | null>(null);
@@ -40,6 +44,7 @@ export default function GroupPage() {
       setGames(list);
       const ended = (list ?? []).filter((x) => x.status === "ended").map((x) => x.id);
       setResults((await getHistory()?.resultsOf(ended).catch(() => ({}))) ?? {});
+      setNicknames(ended[0] ? await lastNicknames(ended[0]) : {});
       setError(null);
     } catch (e) {
       setError(messageOf(e));
@@ -161,6 +166,11 @@ export default function GroupPage() {
                     {m.role === "admin" && <Crown size={14} className="shrink-0 text-gold-400" aria-label="amministratore" />}
                   </span>
                   <span className="block truncate text-xs text-white/45">{m.username ? `@${m.username}` : "ospite, senza account"}</span>
+                  {nicknames[m.id] && (
+                    <span className="block truncate text-xs text-gold-400/90" title={`Dall'ultima serata: ${nicknames[m.id].reason}`}>
+                      {nicknames[m.id].emoji} {nicknames[m.id].title}
+                    </span>
+                  )}
                 </span>
                 <ChevronRight size={18} className="shrink-0 text-white/25" />
               </button>
@@ -308,6 +318,19 @@ export default function GroupPage() {
       <Toast toast={toast} onDone={() => setToast(null)} />
     </Shell>
   );
+}
+
+/** I soprannomi di una serata, per membro della compagnia (vuoto se non si riesce a caricarla). */
+async function lastNicknames(gameId: string): Promise<Record<string, Nickname>> {
+  const game = await getStats()?.game(gameId).catch(() => null);
+  if (!game) return {};
+  const byPlayer = nicknamesOf(analyzeNight(game.state, game.history), (c, signed) => formatCents(c, { signed }));
+  const out: Record<string, Nickname> = {};
+  for (const [playerId, nick] of Object.entries(byPlayer)) {
+    const member = game.memberOf[playerId];
+    if (member) out[member] = nick;
+  }
+  return out;
 }
 
 function Shell({ children }: { children: React.ReactNode }) {
